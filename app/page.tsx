@@ -518,12 +518,35 @@ export default function HomeDashboard() {
       refreshAllData(currentUser.id);
     }
 
+    // Filter transactions for report based on selected period and current user
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+
+    const userTransactions = transactions.filter(t => !currentUser || t.userId === currentUser.id);
+    const periodFiltered = userTransactions.filter((t) => {
+      const txDate = new Date(t.date);
+      if (isNaN(txDate.getTime())) return true;
+      if (reportPeriod === "monthly") {
+        return txDate.getFullYear() === currentYear && txDate.getMonth() === currentMonth;
+      } else if (reportPeriod === "quarterly") {
+        const diff = (currentYear - txDate.getFullYear()) * 12 + (currentMonth - txDate.getMonth());
+        return diff >= 0 && diff < 3;
+      } else if (reportPeriod === "yearly") {
+        return txDate.getFullYear() === currentYear;
+      }
+      return true;
+    });
+
+    const reportTxs = periodFiltered.length > 0 ? periodFiltered : userTransactions;
+
     // CSV / Excel Trigger
     if (format === "csv" || format === "excel") {
       let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
       csvContent += "ID;Data;Categoria;Descrição;Valor;Tipo;Status\n";
-      transactions.forEach((t) => {
-        csvContent += `${t.id};${new Date(t.date).toLocaleDateString("pt-BR")};${t.category};${t.description};${t.amount};${t.type === "income" ? "Entrada" : "Saída"};${t.status}\n`;
+      reportTxs.forEach((t) => {
+        const valStr = (Number(t.amount) || 0).toFixed(2).replace(".", ",");
+        csvContent += `${t.id};${new Date(t.date).toLocaleDateString("pt-BR")};${t.category};${t.description};${valStr};${t.type === "income" ? "Entrada" : "Saída"};${t.status}\n`;
       });
       const encodedUri = encodeURI(csvContent);
       const link = document.createElement("a");
@@ -533,9 +556,9 @@ export default function HomeDashboard() {
       link.click();
       document.body.removeChild(link);
     } else if (format === "pdf") {
-      const totalIncome = transactions.filter(t => t.type === "income").reduce((acc, curr) => acc + curr.amount, 0);
-      const totalExpense = transactions.filter(t => t.type === "expense").reduce((acc, curr) => acc + curr.amount, 0);
-      const netBalance = totalIncome - totalExpense;
+      const totalIncome = Math.round(reportTxs.filter(t => t.type === "income").reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) * 100) / 100;
+      const totalExpense = Math.round(reportTxs.filter(t => t.type === "expense").reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0) * 100) / 100;
+      const netBalance = Math.round((totalIncome - totalExpense) * 100) / 100;
 
       setActiveReport({
         title: reportTitle,
@@ -544,9 +567,9 @@ export default function HomeDashboard() {
         totalIncome,
         totalExpense,
         netBalance,
-        transactions: [...transactions],
-        investments: [...investments],
-        goals: [...goals],
+        transactions: [...reportTxs],
+        investments: [...investments.filter(i => !currentUser || i.userId === currentUser.id)],
+        goals: [...goals.filter(g => !currentUser || g.userId === currentUser.id)],
       });
     }
   };
@@ -561,9 +584,9 @@ export default function HomeDashboard() {
         currentUser.id,
         data.type === "income" ? "success" : "info",
         data.type === "income" ? "Receita Registrada" : "Despesa Registrada",
-        `R$ ${data.amount.toFixed(2)} registrado sob categoria ${data.category}`
+        `R$ ${(Number(data.amount) || 0).toFixed(2)} registrado sob categoria ${data.category}`
       );
-      // Synchronize transaction with calendar
+      // Synchronize transaction with calendar without re-adding transaction (syncAsTransaction = false)
       NexFinDatabase.addCalendarEvent(currentUser.id, {
         title: data.description,
         amount: data.amount,
@@ -571,7 +594,7 @@ export default function HomeDashboard() {
         date: data.date,
         status: data.status || "paid",
         isRecurring: false,
-      });
+      }, false);
     } else if (dataType === "goal") {
       NexFinDatabase.addGoal(currentUser.id, data);
       NexFinDatabase.addNotification(currentUser.id, "success", "Nova Meta Criada", `Objetivo ${data.name} registrado.`);
@@ -723,11 +746,15 @@ export default function HomeDashboard() {
     setTimeout(() => setRealtimeSynced(false), 2000);
   };
 
-  // Calculations for dashboard
-  const incomeTotal = transactions.filter(t => t.userId === currentUser?.id && t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-  const expenseTotal = transactions.filter(t => t.userId === currentUser?.id && t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
-  const balanceTotal = incomeTotal - expenseTotal;
-  const savingsTotal = investments.reduce((sum, i) => sum + i.amount, 0);
+  // Calculations for dashboard with strict precision
+  const userTxs = transactions.filter(t => !currentUser || t.userId === currentUser.id);
+  const incomeTotal = Math.round(userTxs.filter(t => t.type === "income").reduce((sum, t) => sum + (Number(t.amount) || 0), 0) * 100) / 100;
+  const expenseTotal = Math.round(userTxs.filter(t => t.type === "expense").reduce((sum, t) => sum + (Number(t.amount) || 0), 0) * 100) / 100;
+  const balanceTotal = Math.round((incomeTotal - expenseTotal) * 100) / 100;
+  const userInvestments = investments.filter(i => !currentUser || i.userId === currentUser.id);
+  const savingsTotal = Math.round(userInvestments.reduce((sum, i) => sum + (Number(i.amount) || 0), 0) * 100) / 100;
+  const expensePercent = incomeTotal > 0 ? Math.min(100, Math.max(0, Math.round((expenseTotal / incomeTotal) * 100))) : (expenseTotal > 0 ? 100 : 0);
+  const incomeRetainedPercent = incomeTotal > 0 ? Math.min(100, Math.max(0, Math.round((Math.max(0, incomeTotal - expenseTotal) / incomeTotal) * 100))) : 0;
 
   // Filter transactions globally
   const filteredTransactions = transactions.filter((t) => {
@@ -1018,8 +1045,8 @@ export default function HomeDashboard() {
                   <h3 className="text-xl md:text-2xl font-mono font-black mt-2 text-[#00C8FF]">
                     R$ {balanceTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </h3>
-                  <p className="text-[10px] text-green-400 mt-1.5 font-sans font-semibold">
-                    ▲ +5.2% este mês
+                  <p className={`text-[10px] mt-1.5 font-sans font-semibold ${balanceTotal >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                    {balanceTotal >= 0 ? "▲ Saldo Superavitário" : "▼ Saldo em Déficit"}
                   </p>
                 </div>
 
@@ -1035,7 +1062,11 @@ export default function HomeDashboard() {
                     R$ {incomeTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </h3>
                   <div className="w-full bg-white/5 h-1 rounded-full mt-3">
-                    <div className="bg-emerald-400 h-full w-[80%] rounded-full shadow-[0_0_8px_rgba(74,222,128,0.5)]" />
+                    <div 
+                      className="bg-emerald-400 h-full rounded-full shadow-[0_0_8px_rgba(74,222,128,0.5)] transition-all duration-500" 
+                      style={{ width: `${incomeRetainedPercent}%` }}
+                      title={`Retenção de saldo: ${incomeRetainedPercent}%`}
+                    />
                   </div>
                 </div>
 
@@ -1051,7 +1082,11 @@ export default function HomeDashboard() {
                     R$ {expenseTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}
                   </h3>
                   <div className="w-full bg-white/5 h-1 rounded-full mt-3">
-                    <div className="bg-[#FF0F7B] h-full w-[45%] rounded-full shadow-[0_0_8px_rgba(255,15,123,0.5)]" />
+                    <div 
+                      className="bg-[#FF0F7B] h-full rounded-full shadow-[0_0_8px_rgba(255,15,123,0.5)] transition-all duration-500" 
+                      style={{ width: `${expensePercent}%` }}
+                      title={`Comprometimento das receitas: ${expensePercent}%`}
+                    />
                   </div>
                 </div>
 
@@ -1501,10 +1536,15 @@ export default function HomeDashboard() {
                       <div className="flex-1">
                         <div className="flex justify-between text-xs text-gray-400 mb-1">
                           <span>Fatura Atual</span>
-                          <span className="font-mono text-white">R$ {c.currentSpent.toFixed(2)} / R$ {c.limit.toLocaleString("pt-BR")}</span>
+                          <span className="font-mono text-white">
+                            R$ {(Number(c.currentSpent) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / R$ {(Number(c.limit) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </div>
                         <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-                          <div className="h-full bg-[#00C8FF] rounded-full" style={{ width: `${Math.min(100, (c.currentSpent / c.limit) * 100)}%` }} />
+                          <div 
+                            className="h-full bg-[#00C8FF] rounded-full" 
+                            style={{ width: `${Number(c.limit) > 0 ? Math.min(100, Math.max(0, Math.round(((Number(c.currentSpent) || 0) / Number(c.limit)) * 100))) : 0}%` }} 
+                          />
                         </div>
                       </div>
 

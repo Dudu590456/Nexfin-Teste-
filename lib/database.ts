@@ -617,9 +617,11 @@ export class NexFinDatabase {
 
   static addTransaction(userId: string, item: Omit<Transaction, "id" | "userId">): Transaction {
     const list = this.getStored<Transaction[]>("transactions", []);
+    const sanitizedAmount = Math.round((Number(item.amount) || 0) * 100) / 100;
     const newItem: Transaction = {
       ...item,
-      id: "t-" + Date.now(),
+      amount: sanitizedAmount,
+      id: "t-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
     };
     list.unshift(newItem);
@@ -635,7 +637,7 @@ export class NexFinDatabase {
 
   static deleteTransaction(userId: string, id: string): void {
     let list = this.getStored<Transaction[]>("transactions", []);
-    const item = list.find(t => t.id === id);
+    const item = list.find(t => t.id === id && t.userId === userId);
     list = list.filter((t) => t.id !== id);
     this.setStored("transactions", list);
     if (item) {
@@ -653,9 +655,13 @@ export class NexFinDatabase {
 
   static addGoal(userId: string, item: Omit<Goal, "id" | "userId">): Goal {
     const list = this.getStored<Goal[]>("goals", []);
+    const targetAmount = Math.round((Number(item.targetAmount) || 0) * 100) / 100;
+    const currentAmount = Math.round((Number(item.currentAmount) || 0) * 100) / 100;
     const newItem: Goal = {
       ...item,
-      id: "g-" + Date.now(),
+      targetAmount: targetAmount > 0 ? targetAmount : 1,
+      currentAmount: Math.max(0, currentAmount),
+      id: "g-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
     };
     list.push(newItem);
@@ -666,9 +672,12 @@ export class NexFinDatabase {
 
   static updateGoalProgress(userId: string, id: string, amount: number): void {
     const list = this.getStored<Goal[]>("goals", []);
-    const index = list.findIndex((g) => g.id === id);
+    const index = list.findIndex((g) => g.userId === userId && g.id === id);
     if (index !== -1) {
-      list[index].currentAmount = Math.min(list[index].targetAmount, list[index].currentAmount + amount);
+      const added = Math.round((Number(amount) || 0) * 100) / 100;
+      const current = Math.round((Number(list[index].currentAmount) || 0) * 100) / 100;
+      const target = Math.round((Number(list[index].targetAmount) || 1) * 100) / 100;
+      list[index].currentAmount = Math.min(target, Math.max(0, Math.round((current + added) * 100) / 100));
       this.setStored("goals", list);
       this.recalculateScore(userId);
     }
@@ -683,9 +692,11 @@ export class NexFinDatabase {
 
   static addBudget(userId: string, item: Omit<Budget, "id" | "userId" | "spentAmount">): Budget {
     const list = this.getStored<Budget[]>("budgets", []);
+    const limitAmount = Math.round((Number(item.limitAmount) || 0) * 100) / 100;
     const newItem: Budget = {
       ...item,
-      id: "b-" + Date.now(),
+      limitAmount,
+      id: "b-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
       spentAmount: 0,
     };
@@ -698,15 +709,16 @@ export class NexFinDatabase {
   private static updateBudgetSpent(userId: string, category: string) {
     const budgets = this.getStored<Budget[]>("budgets", []);
     const txs = this.getTransactions(userId);
+    const catClean = (category || "").trim().toLowerCase();
     
-    // Calculate total spent in this category for current month
+    // Calculate total spent in this category
     const spent = txs
-      .filter(t => t.type === "expense" && t.category.toLowerCase() === category.toLowerCase())
-      .reduce((sum, t) => sum + t.amount, 0);
+      .filter(t => t.type === "expense" && (t.category || "").trim().toLowerCase() === catClean)
+      .reduce((sum, t) => Math.round((sum + (Number(t.amount) || 0)) * 100) / 100, 0);
 
-    const index = budgets.findIndex(b => b.category.toLowerCase() === category.toLowerCase());
+    const index = budgets.findIndex(b => b.userId === userId && (b.category || "").trim().toLowerCase() === catClean);
     if (index !== -1) {
-      budgets[index].spentAmount = spent;
+      budgets[index].spentAmount = Math.round(spent * 100) / 100;
       this.setStored("budgets", budgets);
     }
   }
@@ -720,9 +732,11 @@ export class NexFinDatabase {
 
   static addInvestment(userId: string, item: Omit<Investment, "id" | "userId">): Investment {
     const list = this.getStored<Investment[]>("investments", []);
+    const amount = Math.round((Number(item.amount) || 0) * 100) / 100;
     const newItem: Investment = {
       ...item,
-      id: "i-" + Date.now(),
+      amount,
+      id: "i-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
     };
     list.push(newItem);
@@ -740,11 +754,14 @@ export class NexFinDatabase {
 
   static addCard(userId: string, item: Omit<Card, "id" | "userId"> & { currentSpent?: number }): Card {
     const list = this.getStored<Card[]>("cards", []);
+    const limit = Math.round((Number(item.limit) || 0) * 100) / 100;
+    const currentSpent = Math.round((Number(item.currentSpent) || 0) * 100) / 100;
     const newItem: Card = {
       ...item,
-      id: "c-" + Date.now(),
+      limit: limit > 0 ? limit : 1000,
+      currentSpent,
+      id: "c-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
-      currentSpent: item.currentSpent ?? 0,
     };
     list.push(newItem);
     this.setStored("cards", list);
@@ -753,14 +770,18 @@ export class NexFinDatabase {
 
   static updateCard(userId: string, id: string, updatedFields: Partial<Card>): Card | null {
     const list = this.getStored<Card[]>("cards", []);
-    const index = list.findIndex((c) => c.id === id);
+    const index = list.findIndex((c) => c.userId === userId && c.id === id);
     if (index !== -1) {
-      list[index] = {
-        ...list[index],
+      const current = list[index];
+      const updated: Card = {
+        ...current,
         ...updatedFields,
+        limit: updatedFields.limit !== undefined ? Math.round((Number(updatedFields.limit) || 0) * 100) / 100 : current.limit,
+        currentSpent: updatedFields.currentSpent !== undefined ? Math.round((Number(updatedFields.currentSpent) || 0) * 100) / 100 : current.currentSpent,
       };
+      list[index] = updated;
       this.setStored("cards", list);
-      return list[index];
+      return updated;
     }
     return null;
   }
@@ -784,9 +805,15 @@ export class NexFinDatabase {
 
   static addInstallment(userId: string, item: Omit<Installment, "id" | "userId" | "currentInstallment">): Installment {
     const list = this.getStored<Installment[]>("installments", []);
+    const totalAmount = Math.round((Number(item.totalAmount) || 0) * 100) / 100;
+    const installmentsCount = Math.max(1, parseInt(String(item.installmentsCount)) || 1);
+    const installmentAmount = Math.round((totalAmount / installmentsCount) * 100) / 100;
     const newItem: Installment = {
       ...item,
-      id: "ins-" + Date.now(),
+      totalAmount,
+      installmentsCount,
+      installmentAmount,
+      id: "ins-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
       currentInstallment: 1,
     };
@@ -832,22 +859,24 @@ export class NexFinDatabase {
     return list.filter((e) => e.userId === userId);
   }
 
-  static addCalendarEvent(userId: string, item: Omit<CalendarEvent, "id" | "userId">): CalendarEvent {
+  static addCalendarEvent(userId: string, item: Omit<CalendarEvent, "id" | "userId">, syncAsTransaction = false): CalendarEvent {
     const list = this.getStored<CalendarEvent[]>("calendar_events", []);
+    const amount = Math.round((Number(item.amount) || 0) * 100) / 100;
     const newItem: CalendarEvent = {
       ...item,
-      id: "ce-" + Date.now(),
+      amount,
+      id: "ce-" + Date.now() + Math.random().toString(36).substring(2, 6),
       userId,
     };
     list.push(newItem);
     this.setStored("calendar_events", list);
     
-    // Add transaction automatically if status is paid
-    if (item.status === "paid") {
+    // Only add a transaction if explicitly requested AND status is paid
+    if (syncAsTransaction && item.status === "paid") {
       this.addTransaction(userId, {
         type: item.type,
         category: "Agendamento",
-        amount: item.amount,
+        amount: newItem.amount,
         description: item.title,
         date: item.date,
         status: "paid",
@@ -859,7 +888,7 @@ export class NexFinDatabase {
 
   static toggleCalendarEventStatus(userId: string, id: string): CalendarEvent | null {
     const list = this.getStored<CalendarEvent[]>("calendar_events", []);
-    const index = list.findIndex(e => e.id === id);
+    const index = list.findIndex(e => e.userId === userId && e.id === id);
     if (index !== -1) {
       const event = list[index];
       const newStatus = event.status === "paid" ? "pending" : "paid";
@@ -867,14 +896,23 @@ export class NexFinDatabase {
       this.setStored("calendar_events", list);
 
       if (newStatus === "paid") {
-        this.addTransaction(userId, {
-          type: event.type,
-          category: "Calendário",
-          amount: event.amount,
-          description: event.title,
-          date: event.date,
-          status: "paid",
-        });
+        // Prevent duplicate transaction if already registered
+        const currentTxs = this.getTransactions(userId);
+        const alreadyExists = currentTxs.some(t => 
+          t.description === event.title && 
+          Math.abs(Number(t.amount) - Number(event.amount)) < 0.01 && 
+          t.date === event.date
+        );
+        if (!alreadyExists) {
+          this.addTransaction(userId, {
+            type: event.type,
+            category: "Boletos e Contas",
+            amount: Math.round((Number(event.amount) || 0) * 100) / 100,
+            description: event.title,
+            date: event.date,
+            status: "paid",
+          });
+        }
       }
       return list[index];
     }
@@ -969,28 +1007,31 @@ export class NexFinDatabase {
     const investments = this.getInvestments(userId);
     const calendarEvents = this.getCalendarEvents(userId);
 
-    // Math metrics
-    const incomeTotal = txs.filter(t => t.type === "income").reduce((sum, t) => sum + t.amount, 0);
-    const expenseTotal = txs.filter(t => t.type === "expense").reduce((sum, t) => sum + t.amount, 0);
+    // Math metrics with strict rounding
+    const incomeTotal = txs.filter(t => t.type === "income").reduce((sum, t) => Math.round((sum + (Number(t.amount) || 0)) * 100) / 100, 0);
+    const expenseTotal = txs.filter(t => t.type === "expense").reduce((sum, t) => Math.round((sum + (Number(t.amount) || 0)) * 100) / 100, 0);
     
     // 1. Organization: ratio of structured events categorized
     const orgScore = budgets.length > 0 ? Math.min(100, Math.max(50, 70 + (budgets.length * 5))) : 0;
     
     // 2. Control: ratio of expense to income
     const ratio = incomeTotal > 0 ? expenseTotal / incomeTotal : 0;
-    const controlScore = incomeTotal > 0 ? Math.min(100, Math.max(20, Math.round((1 - ratio) * 100))) : 0;
+    const controlScore = incomeTotal > 0 ? Math.min(100, Math.max(20, Math.round((1 - Math.min(1, ratio)) * 100))) : 0;
 
     // 3. Savings: proportion of investments
-    const investSum = investments.reduce((sum, i) => sum + i.amount, 0);
+    const investSum = investments.reduce((sum, i) => Math.round((sum + (Number(i.amount) || 0)) * 100) / 100, 0);
     const savingsScore = investSum > 0 ? Math.min(100, Math.max(40, Math.round(50 + (investSum / 2000)))) : 0;
 
     // 4. Reserve: target emergency goal progress
     const reserveGoal = goals.find(g => g.name.toLowerCase().includes("reserva"));
-    const reserveScore = reserveGoal ? Math.round((reserveGoal.currentAmount / reserveGoal.targetAmount) * 100) : 0;
+    const reserveScore = (reserveGoal && Number(reserveGoal.targetAmount) > 0)
+      ? Math.min(100, Math.max(0, Math.round(((Number(reserveGoal.currentAmount) || 0) / Number(reserveGoal.targetAmount)) * 100)))
+      : 0;
 
     // 5. Goals: average of all goals progress
-    const goalsProgress = goals.length > 0 
-      ? Math.round(goals.reduce((sum, g) => sum + (g.currentAmount / g.targetAmount * 100), 0) / goals.length)
+    const validGoals = goals.filter(g => Number(g.targetAmount) > 0);
+    const goalsProgress = validGoals.length > 0 
+      ? Math.min(100, Math.max(0, Math.round(validGoals.reduce((sum, g) => sum + Math.min(100, ((Number(g.currentAmount) || 0) / Number(g.targetAmount)) * 100), 0) / validGoals.length)))
       : 0;
 
     // 6. Punctuality: status of scheduled bills

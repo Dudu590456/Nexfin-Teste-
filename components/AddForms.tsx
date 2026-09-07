@@ -56,9 +56,23 @@ export default function AddForms({ type, onClose, onSave, initialData }: AddForm
   // Attachment states
   const [attachmentName, setAttachmentName] = useState("");
 
+  // Helper to parse currency inputs with support for Brazilian formats (1.250,50 or 150,50 or 150.50)
+  const parseFinancialInput = (val: any, fallback = 0): number => {
+    if (typeof val === "number") return isNaN(val) ? fallback : Math.round(val * 100) / 100;
+    if (!val) return fallback;
+    let str = String(val).trim();
+    if (str.includes(",") && str.includes(".")) {
+      str = str.replace(/\./g, "").replace(",", ".");
+    } else if (str.includes(",")) {
+      str = str.replace(",", ".");
+    }
+    const parsed = parseFloat(str);
+    return isNaN(parsed) ? fallback : Math.round(parsed * 100) / 100;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const numAmount = parseFloat(amount) || 0;
+    const numAmount = parseFinancialInput(amount, 0);
 
     if (type === "income" || type === "expense") {
       onSave("transaction", {
@@ -72,8 +86,8 @@ export default function AddForms({ type, onClose, onSave, initialData }: AddForm
     } else if (type === "goal") {
       onSave("goal", {
         name: goalName || "Meta de Economia",
-        targetAmount: parseFloat(targetAmount) || 1000,
-        currentAmount: initialData?.currentAmount || 0,
+        targetAmount: parseFinancialInput(targetAmount, 1000),
+        currentAmount: parseFinancialInput(initialData?.currentAmount, 0),
         category: category || "Metas",
         deadline: deadline || new Date().toISOString().split("T")[0],
       });
@@ -86,8 +100,8 @@ export default function AddForms({ type, onClose, onSave, initialData }: AddForm
         date,
       });
     } else if (type === "installment") {
-      const total = parseFloat(amount) || 1200;
-      const count = parseInt(installmentsCount) || 12;
+      const total = parseFinancialInput(amount, 1200);
+      const count = Math.max(1, parseInt(String(installmentsCount)) || 12);
       const partAmount = Math.round((total / count) * 100) / 100;
       onSave("installment", {
         description: description || "Compra Parcelada",
@@ -110,11 +124,11 @@ export default function AddForms({ type, onClose, onSave, initialData }: AddForm
       onSave("card", {
         id: initialData?.id,
         name: cardName || "Cartão Geral",
-        limit: parseFloat(amount) || 5000,
+        limit: parseFinancialInput(amount, 5000),
         expiry: cardExpiry || "12/32",
         lastFour: cardLastFour || "4321",
         color: getCardColor(cardName),
-        currentSpent: initialData?.currentSpent || 0,
+        currentSpent: parseFinancialInput(initialData?.currentSpent, 0),
       });
     } else {
       // General fallbacks for note, document, category, planning

@@ -56,7 +56,9 @@ export default function LossPanel({ analysis, onRefresh, loading }: LossPanelPro
           </div>
           <div>
             <span className="text-[10px] text-gray-500 font-semibold uppercase">Economia Possível Detectada</span>
-            <p className="text-2xl font-mono font-black text-white mt-0.5">R$ {possibleSavingsTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-mono font-black text-white mt-0.5">
+              R$ {(Number(possibleSavingsTotal) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </p>
             <span className="text-[10px] text-[#00C8FF] block mt-0.5 font-medium">Reinvestindo este valor você acelera suas metas</span>
           </div>
         </div>
@@ -90,7 +92,9 @@ export default function LossPanel({ analysis, onRefresh, loading }: LossPanelPro
                   <p className="text-xs text-white font-bold mt-0.5 leading-tight">{w.description}</p>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-xs font-mono font-black text-[#FF4D4F]">-R$ {w.amount.toFixed(2)}</span>
+                  <span className="text-xs font-mono font-black text-[#FF4D4F]">
+                    -R$ {(Number(w.amount) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                   <span className="text-[9px] text-gray-500 block uppercase font-medium">Estimado</span>
                 </div>
               </div>
@@ -113,7 +117,9 @@ export default function LossPanel({ analysis, onRefresh, loading }: LossPanelPro
                   <span className="text-[10px] text-amber-500 block mt-0.5">{sub.usage}</span>
                 </div>
                 <div className="text-right shrink-0">
-                  <span className="text-xs font-mono font-black text-amber-400">R$ {sub.amount.toFixed(2)}</span>
+                  <span className="text-xs font-mono font-black text-amber-400">
+                    R$ {(Number(sub.amount) || 0).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
                   <span className="text-[9px] text-gray-500 block uppercase font-medium">Mensal</span>
                 </div>
               </div>
