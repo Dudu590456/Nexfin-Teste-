@@ -1,0 +1,88 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+/* Premium Custom Design Utilities */
+@layer utilities {
+  .font-sans {
+    font-family: var(--font-sans), system-ui, -apple-system, sans-serif;
+  }
+  .font-display {
+    font-family: var(--font-display), system-ui, -apple-system, sans-serif;
+  }
+  .font-mono {
+    font-family: var(--font-mono), monospace;
+  }
+
+  /* Glassmorphism Cards */
+  .glass-card {
+    background: rgba(17, 24, 39, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+  }
+
+  .glass-card-hover {
+    transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .glass-card-hover:hover {
+    background: rgba(17, 24, 39, 0.85);
+    border-color: rgba(0, 200, 255, 0.25);
+    box-shadow: 0 0 25px rgba(0, 200, 255, 0.15);
+    transform: translateY(-2px);
+  }
+
+  /* Neon Borders & Glows */
+  .border-neon-cyan {
+    border-color: rgba(0, 200, 255, 0.4);
+    box-shadow: 0 0 15px rgba(0, 200, 255, 0.1);
+  }
+  
+  .border-neon-magenta {
+    border-color: rgba(255, 15, 123, 0.4);
+    box-shadow: 0 0 15px rgba(255, 15, 123, 0.1);
+  }
+
+  .text-neon-cyan {
+    color: #00C8FF;
+    text-shadow: 0 0 8px rgba(0, 200, 255, 0.5);
+  }
+
+  .text-neon-magenta {
+    color: #FF0F7B;
+    text-shadow: 0 0 8px rgba(255, 15, 123, 0.5);
+  }
+
+  /* Hide default scrollbars */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Custom Print styles for saving high-fidelity PDFs */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #printable-boleto-document, #printable-boleto-document *,
+  #printable-report-document, #printable-report-document * {
+    visibility: visible;
+  }
+  #printable-boleto-document, #printable-report-document {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    border: none !important;
+    box-shadow: none !important;
+    background: white !important;
+    color: black !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

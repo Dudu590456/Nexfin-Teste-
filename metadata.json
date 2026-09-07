@@ -1,0 +1,6 @@
+{
+  "name": "NexFin",
+  "description": "Premium personal financial management system with futuristic glassmorphic UI, real-time sync, smart AI financial advisor, radar notifications, and comprehensive visual score tracking.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
