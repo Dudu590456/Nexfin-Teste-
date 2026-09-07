@@ -23,6 +23,7 @@ import VoiceModal from "@/components/VoiceModal";
 import PrintableReportModal from "@/components/PrintableReportModal";
 import AddForms from "@/components/AddForms";
 import AiChat from "@/components/AiChat";
+import NotesChecklistManager from "@/components/NotesChecklistManager";
 
 // Helpers for bank logos and card brand flags on physical design
 const renderBankLogo = (name: string) => {
@@ -246,7 +247,7 @@ export default function HomeDashboard() {
   const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>([]);
   const [score, setScore] = useState<FinancialScore | null>(null);
   const [aiHistory, setAiHistory] = useState<AIHistoryItem[]>([]);
-  const [activeTab, setActiveTab] = useState<"geral" | "fluxo" | "calendario" | "cartoes" | "boletos" | "metas" | "relatorios" | "ia" | "perfil">("geral");
+  const [activeTab, setActiveTab] = useState<"geral" | "fluxo" | "calendario" | "cartoes" | "boletos" | "metas" | "notas" | "relatorios" | "ia" | "perfil">("geral");
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [showVoiceModal, setShowVoiceModal] = useState(false);
 
@@ -257,6 +258,7 @@ export default function HomeDashboard() {
     cartoes: "Cartões & Faturas",
     boletos: "Boletos & Contas",
     metas: "Metas Financeiras",
+    notas: "Notas & Checklists",
     relatorios: "Relatórios Executivos",
     ia: "Inteligência Artificial",
     perfil: "Perfil & Ajustes",
@@ -1076,7 +1078,7 @@ export default function HomeDashboard() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 
                 {/* Score health dial widget */}
-                <div className="lg:col-span-1">
+                <div className="lg:col-span-1 flex">
                   {score && <ScoreCard scoreData={score} hasData={transactions.length > 0} />}
                 </div>
 
@@ -1686,6 +1688,26 @@ export default function HomeDashboard() {
             </motion.div>
           )}
 
+          {/* TAB: NOTAS & CHECKLISTS PATRIMONIAIS */}
+          {activeTab === "notas" && (
+            <motion.div
+              key="notas"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              className="space-y-6"
+            >
+              <NotesChecklistManager 
+                userId={currentUser?.id || "user-123"}
+                onSyncNeeded={() => {
+                  if (currentUser) {
+                    refreshAllData(currentUser.id);
+                  }
+                }}
+              />
+            </motion.div>
+          )}
+
           {/* TAB 7: RELATÓRIOS */}
           {activeTab === "relatorios" && (
             <motion.div
@@ -2005,7 +2027,13 @@ export default function HomeDashboard() {
 
       {/* Speed Dial Floating Action Button (Lee component) */}
       <SpeedDial 
-        onOpenEntity={(type) => setActiveFormType(type)}
+        onOpenEntity={(type) => {
+          if (type === "note" || type === "checklist") {
+            setActiveTab("notas");
+          } else {
+            setActiveFormType(type);
+          }
+        }}
         onOpenVoice={() => setShowVoiceModal(true)}
       />
 

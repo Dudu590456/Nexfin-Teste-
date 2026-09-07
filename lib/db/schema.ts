@@ -139,3 +139,31 @@ export const aiHistoryItems = pgTable("ai_history_items", {
   content: text("content").notNull(),
   timestamp: text("timestamp").notNull(),
 });
+
+export interface ChecklistItemType {
+  id: string;
+  text: string;
+  completed: boolean;
+  dueDate?: string;
+}
+
+export const notes = pgTable("notes", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  content: text("content").notNull(),
+  category: text("category").default("Geral").notNull(),
+  color: text("color").default("blue").notNull(),
+  isPinned: boolean("is_pinned").default(false).notNull(),
+  updatedAt: text("updated_at").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+export const checklists = pgTable("checklists", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  title: text("title").notNull(),
+  category: text("category").default("Geral").notNull(),
+  items: jsonb("items").$type<ChecklistItemType[]>().notNull(),
+  createdAt: text("created_at").notNull(),
+});

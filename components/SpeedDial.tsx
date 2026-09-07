@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
-import { Plus, Mic, ArrowUpRight, ArrowDownRight, Calendar, Target, TrendingUp, CreditCard } from "lucide-react";
+import { Plus, Mic, ArrowUpRight, ArrowDownRight, Calendar, Target, TrendingUp, CreditCard, Bookmark, CheckSquare } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
 interface SpeedDialProps {
@@ -33,6 +33,13 @@ export default function SpeedDial({ onOpenEntity, onOpenVoice }: SpeedDialProps)
       label: "Despesa",
       icon: ArrowDownRight,
       color: "bg-rose-500 text-black shadow-rose-500/30",
+    },
+    {
+      id: "note",
+      type: "note",
+      label: "Anotação / Checklist",
+      icon: Bookmark,
+      color: "bg-amber-400 text-black shadow-amber-400/30",
     },
     {
       id: "calendar_event",

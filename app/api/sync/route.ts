@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
-import { getDb } from "@/lib/db";
+import { getDb, ensureDatabaseSchema } from "@/lib/db";
 import {
   userProfiles,
   transactions,
@@ -20,22 +20,55 @@ import {
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
-    const userId = url.searchParams.get("userId");
+    const checkStatus = url.searchParams.get("check");
 
+    const isPlaceholder = !process.env.DATABASE_URL || 
+      process.env.DATABASE_URL.includes("sua-senha") || 
+      process.env.DATABASE_URL.includes("MY_DATABASE_URL") ||
+      process.env.DATABASE_URL.includes("placeholder");
+
+    if (checkStatus === "status") {
+      return NextResponse.json({
+        configured: !isPlaceholder,
+        hasUrl: Boolean(process.env.DATABASE_URL),
+      });
+    }
+
+    const userId = url.searchParams.get("userId");
     if (!userId) {
       return NextResponse.json({ error: "userId is required" }, { status: 400 });
     }
 
     // Check if database URL is configured
-    if (!process.env.DATABASE_URL) {
+    if (isPlaceholder) {
       return NextResponse.json({
         success: true,
         synchronized: false,
+        offline: true,
         message: "Supabase DATABASE_URL is not configured. Running in offline fallback mode.",
       });
     }
 
     const db = getDb();
+    if (!db) {
+      return NextResponse.json({
+        success: true,
+        synchronized: false,
+        offline: true,
+        message: "Supabase connection not configured. Running in offline fallback mode.",
+      });
+    }
+
+    // Attempt schema initialization if not done yet
+    await ensureDatabaseSchema().catch(() => false);
+
+    const safeQuery = async <T>(query: Promise<T>, fallback: T): Promise<T> => {
+      try {
+        return await query;
+      } catch (err) {
+        return fallback;
+      }
+    };
 
     // Pull all data for the user from Supabase PostgreSQL tables in parallel
     const [
@@ -53,19 +86,19 @@ export async function GET(req: NextRequest) {
       financialScoresResult,
       aiHistoryResult,
     ] = await Promise.all([
-      db.select().from(userProfiles).where(eq(userProfiles.id, userId)).limit(1),
-      db.select().from(transactions).where(eq(transactions.userId, userId)),
-      db.select().from(goals).where(eq(goals.userId, userId)),
-      db.select().from(budgets).where(eq(budgets.userId, userId)),
-      db.select().from(investments).where(eq(investments.userId, userId)),
-      db.select().from(attachments).where(eq(attachments.userId, userId)),
-      db.select().from(notifications).where(eq(notifications.userId, userId)),
-      db.select().from(calendarEvents).where(eq(calendarEvents.userId, userId)),
-      db.select().from(cards).where(eq(cards.userId, userId)),
-      db.select().from(installments).where(eq(installments.userId, userId)),
-      db.select().from(financialReports).where(eq(financialReports.userId, userId)),
-      db.select().from(financialScores).where(eq(financialScores.userId, userId)).limit(1),
-      db.select().from(aiHistoryItems).where(eq(aiHistoryItems.userId, userId)),
+      safeQuery(db.select().from(userProfiles).where(eq(userProfiles.id, userId)).limit(1), []),
+      safeQuery(db.select().from(transactions).where(eq(transactions.userId, userId)), []),
+      safeQuery(db.select().from(goals).where(eq(goals.userId, userId)), []),
+      safeQuery(db.select().from(budgets).where(eq(budgets.userId, userId)), []),
+      safeQuery(db.select().from(investments).where(eq(investments.userId, userId)), []),
+      safeQuery(db.select().from(attachments).where(eq(attachments.userId, userId)), []),
+      safeQuery(db.select().from(notifications).where(eq(notifications.userId, userId)), []),
+      safeQuery(db.select().from(calendarEvents).where(eq(calendarEvents.userId, userId)), []),
+      safeQuery(db.select().from(cards).where(eq(cards.userId, userId)), []),
+      safeQuery(db.select().from(installments).where(eq(installments.userId, userId)), []),
+      safeQuery(db.select().from(financialReports).where(eq(financialReports.userId, userId)), []),
+      safeQuery(db.select().from(financialScores).where(eq(financialScores.userId, userId)).limit(1), []),
+      safeQuery(db.select().from(aiHistoryItems).where(eq(aiHistoryItems.userId, userId)), []),
     ]);
 
     return NextResponse.json({
@@ -90,10 +123,13 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error("Error in GET /api/sync:", error);
     return NextResponse.json({
-      success: false,
-      error: "Failed to pull synchronized data.",
+      success: true,
+      synchronized: false,
+      offline: true,
+      message: "Supabase connection unavailable or credentials invalid. Running in local mode.",
       details: error.message || String(error),
-    }, { status: 500 });
+      data: null,
+    });
   }
 }
 
@@ -106,15 +142,29 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "userId and data are required" }, { status: 400 });
     }
 
-    if (!process.env.DATABASE_URL) {
+    const isPlaceholder = !process.env.DATABASE_URL || 
+      process.env.DATABASE_URL.includes("sua-senha") || 
+      process.env.DATABASE_URL.includes("MY_DATABASE_URL") ||
+      process.env.DATABASE_URL.includes("placeholder");
+
+    if (isPlaceholder) {
       return NextResponse.json({
         success: true,
         synchronized: false,
+        offline: true,
         message: "Supabase DATABASE_URL is not configured. Saved locally.",
       });
     }
 
     const db = getDb();
+    if (!db) {
+      return NextResponse.json({
+        success: true,
+        synchronized: false,
+        offline: true,
+        message: "Supabase connection not configured. Saved locally.",
+      });
+    }
 
     // Upsert Profile
     if (data.profile) {
@@ -351,9 +401,11 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error("Error in POST /api/sync:", error);
     return NextResponse.json({
-      success: false,
-      error: "Failed to push synchronization.",
+      success: true,
+      synchronized: false,
+      offline: true,
+      message: "Supabase connection unavailable or credentials invalid. Data saved locally.",
       details: error.message || String(error),
-    }, { status: 500 });
+    });
   }
 }

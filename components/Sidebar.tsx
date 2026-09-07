@@ -3,7 +3,7 @@
 import React, { useEffect } from "react";
 import { 
   Home, TrendingUp, Calendar, CreditCard, FileText, Target, FilePieChart, Bot, User, 
-  X, ChevronRight, Sparkles, LogOut, ShieldCheck, Zap
+  X, ChevronRight, Sparkles, LogOut, ShieldCheck, Zap, CheckSquare
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { UserProfile, FinancialScore } from "@/lib/database";
@@ -24,6 +24,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: "cartoes", label: "Cartões", description: "Faturas & parcelamentos", icon: CreditCard },
   { id: "boletos", label: "Boletos", description: "Contas a pagar & código", icon: FileText },
   { id: "metas", label: "Metas", description: "Objetivos de economia", icon: Target },
+  { id: "notas", label: "Notas & Tarefas", description: "Checklists & anotações", icon: CheckSquare, badge: "Supabase", badgeColor: "bg-emerald-500/15 text-emerald-400 border-emerald-500/30" },
   { id: "relatorios", label: "Relatórios", description: "Demonstrativos contábeis", icon: FilePieChart },
   { id: "ia", label: "IA", description: "Consultor & otimizações", icon: Bot, badge: "Gemini", badgeColor: "bg-[#00C8FF]/15 text-[#00C8FF] border-[#00C8FF]/30" },
   { id: "perfil", label: "Perfil", description: "Configurações & dados", icon: User },

@@ -142,6 +142,34 @@ export interface AIHistoryItem {
   timestamp: string;
 }
 
+export interface Note {
+  id: string;
+  userId: string;
+  title: string;
+  content: string;
+  category: string;
+  color: string;
+  isPinned: boolean;
+  updatedAt: string;
+  createdAt: string;
+}
+
+export interface ChecklistItem {
+  id: string;
+  text: string;
+  completed: boolean;
+  dueDate?: string;
+}
+
+export interface Checklist {
+  id: string;
+  userId: string;
+  title: string;
+  category: string;
+  items: ChecklistItem[];
+  createdAt: string;
+}
+
 // Simulated real-time BroadcastChannel for cross-tab or simulated device sync
 let syncChannel: BroadcastChannel | null = null;
 if (typeof window !== "undefined") {
@@ -292,6 +320,8 @@ export class NexFinDatabase {
         score: this.getStored<FinancialScore[]>("score_list", []).find(s => s.userId === userId) || null,
         aiHistory: this.getStored<AIHistoryItem[]>("ai_history", []).filter(h => h.userId === userId),
         financialReports: this.getStored<FinancialReport[]>("financial_reports", []).filter(rep => rep.userId === userId),
+        notes: this.getStored<Note[]>("notes", []).filter(n => n.userId === userId),
+        checklists: this.getStored<Checklist[]>("checklists", []).filter(c => c.userId === userId),
       };
 
       const response = await fetch("/api/sync", {
@@ -421,6 +451,18 @@ export class NexFinDatabase {
           localStorage.setItem("nexfin_financial_reports", JSON.stringify([...otherReports, ...server.financialReports]));
         }
 
+        // Notes
+        if (server.notes) {
+          const otherNotes = this.getStored<Note[]>("notes", []).filter(n => n.userId !== userId);
+          localStorage.setItem("nexfin_notes", JSON.stringify([...otherNotes, ...server.notes]));
+        }
+
+        // Checklists
+        if (server.checklists) {
+          const otherChecklists = this.getStored<Checklist[]>("checklists", []).filter(c => c.userId !== userId);
+          localStorage.setItem("nexfin_checklists", JSON.stringify([...otherChecklists, ...server.checklists]));
+        }
+
         // Trigger local BroadcastChannel event so other tabs/listeners update
         if (syncChannel) {
           syncChannel.postMessage({ key: "__all__", value: Date.now() });
@@ -513,6 +555,8 @@ export class NexFinDatabase {
     filterOutUser<CalendarEvent>("calendar_events");
     filterOutUser<AIHistoryItem>("ai_history");
     filterOutUser<FinancialReport>("financial_reports");
+    filterOutUser<Note>("notes");
+    filterOutUser<Checklist>("checklists");
 
     // Reset score to clean 0
     const scores = this.getStored<FinancialScore[]>("score_list", []);
@@ -991,5 +1035,125 @@ export class NexFinDatabase {
       list.push(scoreObj);
     }
     this.setStored("score_list", list);
+  }
+
+  // Notes operations
+  static getNotes(userId: string): Note[] {
+    this.ensureUserSeeded(userId);
+    const list = this.getStored<Note[]>("notes", []);
+    return list.filter((n) => n.userId === userId);
+  }
+
+  static addNote(userId: string, data: { title: string; content: string; category?: string; color?: string; isPinned?: boolean }): Note {
+    const list = this.getStored<Note[]>("notes", []);
+    const now = new Date().toISOString();
+    const newNote: Note = {
+      id: "note-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+      userId,
+      title: data.title || "Anotação Financeira",
+      content: data.content || "",
+      category: data.category || "Geral",
+      color: data.color || "blue",
+      isPinned: data.isPinned ?? false,
+      updatedAt: now,
+      createdAt: now,
+    };
+    list.unshift(newNote);
+    this.setStored("notes", list);
+    return newNote;
+  }
+
+  static updateNote(id: string, data: Partial<Note>): Note | null {
+    const list = this.getStored<Note[]>("notes", []);
+    const idx = list.findIndex(n => n.id === id);
+    if (idx === -1) return null;
+    list[idx] = {
+      ...list[idx],
+      ...data,
+      updatedAt: new Date().toISOString(),
+    };
+    this.setStored("notes", list);
+    return list[idx];
+  }
+
+  static deleteNote(id: string): void {
+    const list = this.getStored<Note[]>("notes", []);
+    this.setStored("notes", list.filter((n) => n.id !== id));
+  }
+
+  static togglePinNote(id: string): void {
+    const list = this.getStored<Note[]>("notes", []);
+    const note = list.find(n => n.id === id);
+    if (note) {
+      note.isPinned = !note.isPinned;
+      note.updatedAt = new Date().toISOString();
+      this.setStored("notes", list);
+    }
+  }
+
+  // Checklists operations
+  static getChecklists(userId: string): Checklist[] {
+    this.ensureUserSeeded(userId);
+    const list = this.getStored<Checklist[]>("checklists", []);
+    return list.filter((c) => c.userId === userId);
+  }
+
+  static addChecklist(userId: string, title: string, category: string = "Geral", initialItems: string[] = []): Checklist {
+    const list = this.getStored<Checklist[]>("checklists", []);
+    const newChecklist: Checklist = {
+      id: "chk-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+      userId,
+      title: title || "Nova Lista de Tarefas",
+      category,
+      items: initialItems.map((text, index) => ({
+        id: "ci-" + Date.now() + "-" + index,
+        text,
+        completed: false,
+      })),
+      createdAt: new Date().toISOString(),
+    };
+    list.unshift(newChecklist);
+    this.setStored("checklists", list);
+    return newChecklist;
+  }
+
+  static deleteChecklist(id: string): void {
+    const list = this.getStored<Checklist[]>("checklists", []);
+    this.setStored("checklists", list.filter((c) => c.id !== id));
+  }
+
+  static toggleChecklistItem(checklistId: string, itemId: string): void {
+    const list = this.getStored<Checklist[]>("checklists", []);
+    const checklist = list.find(c => c.id === checklistId);
+    if (checklist) {
+      const item = checklist.items.find(i => i.id === itemId);
+      if (item) {
+        item.completed = !item.completed;
+        this.setStored("checklists", list);
+      }
+    }
+  }
+
+  static addChecklistItem(checklistId: string, text: string, dueDate?: string): void {
+    const list = this.getStored<Checklist[]>("checklists", []);
+    const checklist = list.find(c => c.id === checklistId);
+    if (checklist && text.trim()) {
+      checklist.items.push({
+        id: "ci-" + Date.now() + "-" + Math.random().toString(36).substring(2, 6),
+        text: text.trim(),
+        completed: false,
+        dueDate,
+      });
+      this.setStored("checklists", list);
+    }
+  }
+
+  static deleteChecklistItem(checklistId: string, itemId: string): void {
+    const list = this.getStored<Checklist[]>("checklists", []);
+    const checklist = list.find(c => c.id === checklistId);
+    if (checklist) {
+      checklist.items = checklist.items.filter(i => i.id !== itemId);
+      this.setStored("checklists", list);
+    }
   }
 }
