@@ -1,0 +1,234 @@
+{
+  "users": [
+    {
+      "id": "user-123",
+      "name": "Eduardo Rocha",
+      "email": "edu.rocha785@gmail.com",
+      "cpf": "123.456.789-00",
+      "avatar": "https://picsum.photos/seed/eduardo/150/150",
+      "password": "123456",
+      "theme": "dark",
+      "language": "pt",
+      "preferences": {
+        "notificationsEnabled": true,
+        "aiGrounding": true,
+        "realtimeSync": true
+      },
+      "createdAt": "2026-09-17T16:26:24.525Z",
+      "updatedAt": "2026-09-17T16:26:24.526Z"
+    },
+    {
+      "id": "user-1789662384526-ga3ln",
+      "name": "Carlos Silva",
+      "email": "carlos.silva@exemplo.com",
+      "cpf": "999.888.777-66",
+      "avatar": "https://picsum.photos/seed/carlos/150/150",
+      "password": "senhaSegura123",
+      "theme": "dark",
+      "language": "pt",
+      "preferences": {
+        "notificationsEnabled": true,
+        "aiGrounding": true,
+        "realtimeSync": true
+      },
+      "createdAt": "2026-09-17T16:26:24.526Z",
+      "updatedAt": "2026-09-17T16:26:24.526Z"
+    },
+    {
+      "id": "user-1789662523936-b0x6c",
+      "name": "Maria Oliveira",
+      "email": "maria.oliveira@empresa.com",
+      "cpf": "111.222.333-44",
+      "avatar": "https://picsum.photos/seed/maria/150/150",
+      "password": "minhaSenhaForte2026",
+      "theme": "dark",
+      "language": "pt",
+      "preferences": {
+        "notificationsEnabled": true,
+        "aiGrounding": true,
+        "realtimeSync": true
+      },
+      "createdAt": "2026-09-17T16:28:43.936Z",
+      "updatedAt": "2026-09-17T16:28:50.783Z"
+    }
+  ],
+  "userData": {
+    "user-123": {
+      "profile": {
+        "id": "user-123",
+        "name": "Eduardo Rocha",
+        "email": "edu.rocha785@gmail.com",
+        "cpf": "123.456.789-00",
+        "avatar": "https://picsum.photos/seed/eduardo/150/150",
+        "password": "123456",
+        "theme": "dark",
+        "language": "pt",
+        "preferences": {
+          "notificationsEnabled": true,
+          "aiGrounding": true,
+          "realtimeSync": true
+        },
+        "createdAt": "2026-09-17T16:26:24.525Z",
+        "updatedAt": "2026-09-17T16:26:24.526Z"
+      },
+      "transactions": [],
+      "goals": [],
+      "budgets": [],
+      "investments": [],
+      "cards": [],
+      "installments": [],
+      "notifications": [],
+      "calendarEvents": [],
+      "score": {
+        "id": "s-user-123",
+        "userId": "user-123",
+        "score": 0,
+        "details": {
+          "organization": 0,
+          "control": 0,
+          "savings": 0,
+          "reserve": 0,
+          "goals": 0,
+          "punctuality": 0
+        },
+        "suggestions": [
+          "Bem-vindo ao NexFin! Cadastre suas primeiras receitas ou despesas para iniciar as análises de Inteligência Artificial."
+        ]
+      },
+      "aiHistory": [
+        {
+          "id": "ah-welcome",
+          "userId": "user-123",
+          "role": "model",
+          "content": "Olá Eduardo! Sou seu assistente de inteligência financeira NexFin. Como posso te ajudar hoje?",
+          "timestamp": "2026-09-17T16:26:24.526Z"
+        }
+      ],
+      "financialReports": [],
+      "notes": [],
+      "checklists": []
+    },
+    "user-1789662384526-ga3ln": {
+      "profile": {
+        "id": "user-1789662384526-ga3ln",
+        "name": "Carlos Silva",
+        "email": "carlos.silva@exemplo.com",
+        "cpf": "999.888.777-66",
+        "avatar": "https://picsum.photos/seed/carlos/150/150",
+        "password": "senhaSegura123",
+        "theme": "dark",
+        "language": "pt",
+        "preferences": {
+          "notificationsEnabled": true,
+          "aiGrounding": true,
+          "realtimeSync": true
+        },
+        "createdAt": "2026-09-17T16:26:24.526Z",
+        "updatedAt": "2026-09-17T16:26:24.526Z"
+      },
+      "transactions": [],
+      "goals": [],
+      "budgets": [],
+      "investments": [],
+      "cards": [],
+      "installments": [],
+      "notifications": [],
+      "calendarEvents": [],
+      "score": {
+        "id": "s-user-1789662384526-ga3ln",
+        "userId": "user-1789662384526-ga3ln",
+        "score": 0,
+        "details": {
+          "organization": 0,
+          "control": 0,
+          "savings": 0,
+          "reserve": 0,
+          "goals": 0,
+          "punctuality": 0
+        },
+        "suggestions": [
+          "Bem-vindo ao NexFin! Cadastre suas primeiras receitas ou despesas para iniciar as análises."
+        ]
+      },
+      "aiHistory": [
+        {
+          "id": "ah-user-1789662384526-ga3ln",
+          "userId": "user-1789662384526-ga3ln",
+          "role": "model",
+          "content": "Olá Carlos Silva! Sua conta foi cadastrada com sucesso e está pronta para uso em qualquer aparelho (celular ou computador). Como posso te ajudar hoje?",
+          "timestamp": "2026-09-17T16:26:24.527Z"
+        }
+      ],
+      "financialReports": [],
+      "notes": [],
+      "checklists": []
+    },
+    "user-1789662523936-b0x6c": {
+      "profile": {
+        "id": "user-1789662523936-b0x6c",
+        "name": "Maria Oliveira",
+        "email": "maria.oliveira@empresa.com",
+        "cpf": "111.222.333-44",
+        "avatar": "https://picsum.photos/seed/maria/150/150",
+        "password": "minhaSenhaForte2026",
+        "theme": "dark",
+        "language": "pt",
+        "preferences": {
+          "notificationsEnabled": true,
+          "aiGrounding": true,
+          "realtimeSync": true
+        },
+        "createdAt": "2026-09-17T16:28:43.936Z",
+        "updatedAt": "2026-09-17T16:28:43.936Z"
+      },
+      "transactions": [
+        {
+          "id": "tx-maria-1",
+          "userId": "user-1789662523936-b0x6c",
+          "type": "income",
+          "category": "Salário",
+          "amount": 6500,
+          "description": "Salário Empresa Tech",
+          "date": "2026-09-17",
+          "status": "paid"
+        }
+      ],
+      "goals": [],
+      "budgets": [],
+      "investments": [],
+      "cards": [],
+      "installments": [],
+      "notifications": [],
+      "calendarEvents": [],
+      "score": {
+        "id": "s-user-1789662523936-b0x6c",
+        "userId": "user-1789662523936-b0x6c",
+        "score": 0,
+        "details": {
+          "organization": 0,
+          "control": 0,
+          "savings": 0,
+          "reserve": 0,
+          "goals": 0,
+          "punctuality": 0
+        },
+        "suggestions": [
+          "Bem-vindo ao NexFin! Cadastre suas primeiras receitas ou despesas para iniciar as análises."
+        ]
+      },
+      "aiHistory": [
+        {
+          "id": "ah-user-1789662523936-b0x6c",
+          "userId": "user-1789662523936-b0x6c",
+          "role": "model",
+          "content": "Olá Maria Oliveira! Sua conta foi cadastrada com sucesso e está pronta para uso em qualquer aparelho (celular ou computador). Como posso te ajudar hoje?",
+          "timestamp": "2026-09-17T16:28:43.936Z"
+        }
+      ],
+      "financialReports": [],
+      "notes": [],
+      "checklists": []
+    }
+  },
+  "version": 1
+}

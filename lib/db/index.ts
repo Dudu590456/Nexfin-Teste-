@@ -6,6 +6,9 @@ let dbClient: any = null;
 let sqlClient: any = null;
 let tablesInitialized = false;
 
+let dbHealthy = true;
+let lastDbHealthCheck = 0;
+
 export function isDbConfigured(): boolean {
   const connStr = process.env.DATABASE_URL;
   if (!connStr) return false;
@@ -17,7 +20,16 @@ export function isDbConfigured(): boolean {
   ) {
     return false;
   }
+  // If recently marked unhealthy due to fatal auth/network error, skip for 30 seconds to prevent blocking
+  if (!dbHealthy && Date.now() - lastDbHealthCheck < 30000) {
+    return false;
+  }
   return true;
+}
+
+export function markDbUnhealthy() {
+  dbHealthy = false;
+  lastDbHealthCheck = Date.now();
 }
 
 export function getSqlClient() {
@@ -30,7 +42,7 @@ export function getSqlClient() {
       ssl: isSupabase ? "require" : undefined,
       max: 10,
       idle_timeout: 20,
-      connect_timeout: 10,
+      connect_timeout: 3,
     });
   }
   return sqlClient;

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { ServerStore } from "@/lib/serverStore";
+import { getDb, markDbUnhealthy } from "@/lib/db";
 import { userProfiles } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -11,112 +12,89 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "E-mail e senha são obrigatórios." }, { status: 400 });
     }
 
-    const isPlaceholder = !process.env.DATABASE_URL || 
-      process.env.DATABASE_URL.includes("sua-senha") || 
-      process.env.DATABASE_URL.includes("MY_DATABASE_URL") ||
-      process.env.DATABASE_URL.includes("placeholder");
-
-    if (isPlaceholder) {
-      return NextResponse.json({
-        success: true,
-        localOnly: true,
-        message: "Offline mode. Registering locally."
-      });
-    }
-
-    const db = getDb();
-    if (!db) {
-      return NextResponse.json({
-        success: true,
-        localOnly: true,
-        message: "Offline mode. Registering locally."
-      });
-    }
-    
-    // Ensure column password exists dynamically
-    try {
-      await db.execute(sql`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password TEXT;`);
-    } catch (err) {
-      console.error("Error creating password column dynamically:", err);
+    if (password.length < 6) {
+      return NextResponse.json(
+        { error: "A senha deve conter no mínimo 6 caracteres." },
+        { status: 400 }
+      );
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const cleanName = (name || "").trim() || cleanEmail.split("@")[0] || "Usuário";
+    const cleanCpf = (cpf || "").trim();
 
-    // Check if email already exists on the server
-    const existing = await db
-      .select()
-      .from(userProfiles)
-      .where(eq(userProfiles.email, cleanEmail))
-      .limit(1);
-
-    if (existing.length > 0) {
-      const existingUser = existing[0];
-      // Update password & details and allow direct login
-      try {
-        await db.execute(sql`UPDATE user_profiles SET password = ${password}, name = COALESCE(NULLIF(${name}, ''), name), cpf = COALESCE(NULLIF(${cpf}, ''), cpf) WHERE id = ${existingUser.id};`);
-      } catch (updErr) {
-        console.warn("Could not update existing user details:", updErr);
-      }
-
-      const updatedUser = {
-        id: existingUser.id,
-        name: name || existingUser.name || "Usuário",
-        email: cleanEmail,
-        cpf: cpf || existingUser.cpf || "",
-        avatar: existingUser.avatar || `https://picsum.photos/seed/${(name || "user").split(" ")[0].toLowerCase()}/150/150`,
-        theme: existingUser.theme || "dark",
-        language: existingUser.language || "pt",
-      };
-
-      return NextResponse.json({
-        success: true,
-        user: updatedUser,
-        userId: existingUser.id,
-        alreadyExists: true,
-        message: "Conta localizada e sincronizada com sucesso!"
-      });
-    }
-
-    const userId = id || "user-" + Date.now();
-
-    // Insert user profile with password
-    await db.insert(userProfiles).values({
-      id: userId,
-      name: name || "",
+    // 1. Register or update immediately in ServerStore (persistent server-side shared vault)
+    const storeResult = ServerStore.registerUser({
+      id,
+      name: cleanName,
       email: cleanEmail,
-      cpf: cpf || "",
-      avatar: `https://picsum.photos/seed/${(name || "user").split(" ")[0].toLowerCase()}/150/150`,
-      theme: "dark",
-      language: "pt",
-      notificationsEnabled: true,
-      aiGrounding: true,
-      realtimeSync: true,
-      password: password,
+      cpf: cleanCpf,
+      password,
     });
 
-    const newUser = {
-      id: userId,
-      name: name || "Usuário",
-      email: cleanEmail,
-      cpf: cpf || "",
-      avatar: `https://picsum.photos/seed/${(name || "user").split(" ")[0].toLowerCase()}/150/150`,
-      theme: "dark",
-      language: "pt",
-    };
+    if (!storeResult.success || !storeResult.user) {
+      return NextResponse.json(
+        { error: storeResult.error || "Erro ao salvar cadastro no servidor." },
+        { status: 400 }
+      );
+    }
+
+    const savedUser = storeResult.user;
+
+    // 2. Best-effort async synchronization to PostgreSQL if configured
+    try {
+      const db = getDb();
+      if (db) {
+        // Ensure column password exists dynamically
+        await db.execute(sql`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password TEXT;`).catch(() => {});
+
+        const existing = await db
+          .select()
+          .from(userProfiles)
+          .where(eq(userProfiles.email, cleanEmail))
+          .limit(1);
+
+        if (existing.length > 0) {
+          await db.execute(
+            sql`UPDATE user_profiles SET password = ${password}, name = COALESCE(NULLIF(${cleanName}, ''), name), cpf = COALESCE(NULLIF(${cleanCpf}, ''), cpf) WHERE id = ${existing[0].id};`
+          );
+        } else {
+          await db.insert(userProfiles).values({
+            id: savedUser.id,
+            name: cleanName,
+            email: cleanEmail,
+            cpf: cleanCpf,
+            avatar: savedUser.avatar,
+            theme: "dark",
+            language: "pt",
+            notificationsEnabled: true,
+            aiGrounding: true,
+            realtimeSync: true,
+            password: password,
+          });
+        }
+      }
+    } catch (pgErr) {
+      console.warn("[Register] PostgreSQL sync skipped (using server vault):", (pgErr as any)?.message || pgErr);
+      markDbUnhealthy();
+    }
 
     return NextResponse.json({
       success: true,
-      user: newUser,
-      userId,
-      message: "Usuário cadastrado com sucesso no servidor."
+      user: savedUser,
+      userId: savedUser.id,
+      alreadyExists: storeResult.alreadyExists ?? false,
+      message: storeResult.alreadyExists
+        ? "Conta localizada e sincronizada com sucesso!"
+        : "Cadastro realizado com sucesso! Pronto para acesso em qualquer aparelho.",
     });
   } catch (error: any) {
     console.error("Error in POST /api/auth/register:", error);
-    return NextResponse.json({
-      success: true,
-      localOnly: true,
-      message: "Registro concluído em modo local (banco temporariamente indisponível).",
-      details: error.message || String(error)
-    });
+    return NextResponse.json(
+      {
+        error: error.message || "Erro inesperado ao registrar usuário.",
+      },
+      { status: 500 }
+    );
   }
 }

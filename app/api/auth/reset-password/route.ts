@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthTokenManager } from "@/lib/auth-tokens";
+import { ServerStore } from "@/lib/serverStore";
 import { getDb } from "@/lib/db";
 import { userProfiles } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
@@ -33,18 +34,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Update password in ServerStore (persistent cross-device storage)
+    ServerStore.updateUserPassword(cleanEmail, newPassword);
+
     // Update password in database if DATABASE_URL is available
     if (process.env.DATABASE_URL) {
       try {
         const db = getDb();
-        try {
-          await db.execute(sql`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password TEXT;`);
-        } catch {}
+        if (db) {
+          try {
+            await db.execute(sql`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password TEXT;`);
+          } catch {}
 
-        await db
-          .update(userProfiles)
-          .set({ password: newPassword })
-          .where(eq(userProfiles.email, cleanEmail));
+          await db
+            .update(userProfiles)
+            .set({ password: newPassword })
+            .where(eq(userProfiles.email, cleanEmail));
+        }
       } catch (dbError: any) {
         console.error("Database update password error:", dbError);
       }

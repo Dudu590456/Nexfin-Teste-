@@ -236,6 +236,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             if (s.aiHistory) localStorage.setItem("nexfin_ai_history", JSON.stringify(s.aiHistory));
             if (s.financialReports) localStorage.setItem("nexfin_financial_reports", JSON.stringify(s.financialReports));
           }
+        } else if (res && res.error) {
+          setError(res.error);
+          setLoading(false);
+          return;
         }
       } catch (networkErr) {
         console.warn("Server API offline or unavailable, fallback to local vault:", networkErr);
@@ -296,7 +300,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       if (loginSuccessful && userData) {
         localStorage.setItem("nexfin_active_user", JSON.stringify(userData));
         localStorage.setItem(`nexfin_pass_${cleanEmail}`, targetPass);
-        setSuccess("Acesso autorizado!");
+        setSuccess("Acesso autorizado! Sincronizando cofre...");
         setTimeout(() => {
           onAuthSuccess(userData.id, userData.email, userData.name || "Usuário");
         }, 400);
@@ -340,7 +344,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     }
 
     if (password !== confirmPassword) {
-      setError("As senhas não conferem.");
+      setError("As senhas não conferem. Digite a mesma senha nos dois campos.");
       return;
     }
 
@@ -363,22 +367,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         }
       };
 
-      // 1. Immediately store in local database & vault
-      NexFinDatabase.updateProfile(userId, activeUser);
-      NexFinDatabase.ensureUserSeeded(userId);
-      localStorage.setItem(`nexfin_pass_${cleanEmail}`, password);
-      localStorage.setItem("nexfin_remembered_email", cleanEmail);
-
-      const profiles = JSON.parse(localStorage.getItem("nexfin_profiles") || "[]");
-      const idx = profiles.findIndex((p: any) => p.email.toLowerCase() === cleanEmail);
-      if (idx !== -1) {
-        profiles[idx] = activeUser;
-      } else {
-        profiles.push(activeUser);
-      }
-      localStorage.setItem("nexfin_profiles", JSON.stringify(profiles));
-
-      // 2. Server register sync
+      // 1. Server register sync (central authority)
       try {
         const response = await fetch("/api/auth/register", {
           method: "POST",
@@ -392,25 +381,46 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           })
         });
         const res = await response.json();
+        if (!response.ok || !res.success) {
+          setError(res.error || "Erro ao registrar usuário.");
+          setLoading(false);
+          return;
+        }
+
         if (res.user && res.user.id) {
           activeUser.id = res.user.id;
           if (res.user.name) activeUser.name = res.user.name;
         }
-      } catch (err) {
-        console.warn("Server register sync skipped:", err);
+      } catch (err: any) {
+        console.warn("Server register error:", err);
       }
+
+      // 2. Store in local database & vault for immediate offline & cache usage
+      NexFinDatabase.updateProfile(activeUser.id, activeUser);
+      NexFinDatabase.ensureUserSeeded(activeUser.id);
+      localStorage.setItem(`nexfin_pass_${cleanEmail}`, password);
+      localStorage.setItem("nexfin_remembered_email", cleanEmail);
+
+      const profiles = JSON.parse(localStorage.getItem("nexfin_profiles") || "[]");
+      const idx = profiles.findIndex((p: any) => p.email.toLowerCase() === cleanEmail);
+      if (idx !== -1) {
+        profiles[idx] = activeUser;
+      } else {
+        profiles.push(activeUser);
+      }
+      localStorage.setItem("nexfin_profiles", JSON.stringify(profiles));
 
       if (autoLoginAfterSignup) {
         localStorage.setItem("nexfin_active_user", JSON.stringify(activeUser));
-        setSuccess("Conta criada com sucesso! Entrando...");
+        setSuccess("Conta criada com sucesso! Acesso liberado em qualquer aparelho.");
         setTimeout(() => {
           onAuthSuccess(activeUser.id, activeUser.email, activeUser.name);
-        }, 350);
+        }, 500);
       } else {
-        setSuccess("Conta criada com sucesso! Faça login abaixo.");
+        setSuccess("Conta criada com sucesso! Acesse em qualquer celular ou computador.");
         setTimeout(() => {
           setMode("login");
-        }, 800);
+        }, 900);
       }
 
     } catch (err: any) {
@@ -591,6 +601,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   onClick={() => {
                     setError("");
                     setSuccess("");
+                    if (email === "edu.rocha785@gmail.com") {
+                      setEmail("");
+                      setPassword("");
+                      setConfirmPassword("");
+                      setName("");
+                      setCpf("");
+                    }
                     setMode("signup");
                   }}
                   className={`flex-1 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2 ${
@@ -812,6 +829,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     onClick={() => {
                       setError("");
                       setSuccess("");
+                      if (email === "edu.rocha785@gmail.com") {
+                        setEmail("");
+                        setPassword("");
+                        setConfirmPassword("");
+                        setName("");
+                        setCpf("");
+                      }
                       setMode("signup");
                     }}
                     className="text-xs text-indigo-400 hover:text-indigo-300 font-bold transition cursor-pointer"
@@ -825,6 +849,13 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             {/* ================= MODE 2: SIGNUP ================= */}
             {mode === "signup" && (
               <form onSubmit={handleSignupSubmit} className="space-y-3.5">
+                {/* Cross-device notice banner */}
+                <div className="p-3 rounded-xl bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 text-xs flex items-center gap-2.5">
+                  <Sparkles className="w-4 h-4 text-cyan-400 shrink-0" />
+                  <span>
+                    <strong>Acesso Multi-Dispositivo:</strong> Crie seu cadastro e acesse em qualquer aparelho (celular ou computador) com seu login e senha.
+                  </span>
+                </div>
                 
                 <div>
                   <label className="block text-xs font-bold text-slate-300 mb-1">

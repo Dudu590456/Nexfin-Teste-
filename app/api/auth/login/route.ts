@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
+import { ServerStore } from "@/lib/serverStore";
+import { getDb, markDbUnhealthy } from "@/lib/db";
 import { 
   userProfiles,
   transactions,
@@ -24,181 +25,102 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "E-mail e senha são obrigatórios." }, { status: 400 });
     }
 
-    const isPlaceholder = !process.env.DATABASE_URL || 
-      process.env.DATABASE_URL.includes("sua-senha") || 
-      process.env.DATABASE_URL.includes("MY_DATABASE_URL") ||
-      process.env.DATABASE_URL.includes("placeholder");
-
-    if (isPlaceholder) {
-      return NextResponse.json({
-        success: true,
-        localOnly: true,
-        message: "Offline mode. Authenticating locally."
-      });
-    }
-
-    const db = getDb();
-    if (!db) {
-      return NextResponse.json({
-        success: true,
-        localOnly: true,
-        message: "Offline mode. Authenticating locally."
-      });
-    }
-
-    // Ensure column password exists dynamically
-    try {
-      await db.execute(sql`ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS password TEXT;`);
-    } catch (err) {
-      console.error("Error creating password column dynamically:", err);
-    }
-
     const cleanEmail = email.toLowerCase().trim();
 
-    // Find profile by email
-    let existing: any[] = [];
+    // 1. Authenticate with ServerStore (central shared persistent authority)
+    const storeAuth = ServerStore.authenticateUser(cleanEmail, password);
+
+    if (!storeAuth.success || !storeAuth.user) {
+      return NextResponse.json(
+        { error: storeAuth.error || "E-mail ou senha incorretos." },
+        { status: storeAuth.status || 401 }
+      );
+    }
+
+    const authenticatedUser = storeAuth.user;
+    let userData = storeAuth.data;
+
+    // 2. Best-effort pull from PostgreSQL if available and healthy to merge any cloud changes
     try {
-      existing = await db
-        .select()
-        .from(userProfiles)
-        .where(eq(userProfiles.email, cleanEmail))
-        .limit(1);
-    } catch (dbQueryErr) {
-      console.warn("DB query error in login:", dbQueryErr);
-      return NextResponse.json({
-        success: true,
-        localOnly: true,
-        message: "Offline mode. Authenticating locally."
-      });
-    }
+      const db = getDb();
+      if (db) {
+        const [
+          txList,
+          goalList,
+          budgetList,
+          investList,
+          notifList,
+          eventList,
+          cardList,
+          instalList,
+          scoreList,
+          aiHistList,
+          reportList
+        ] = await Promise.all([
+          db.select().from(transactions).where(eq(transactions.userId, authenticatedUser.id)),
+          db.select().from(goals).where(eq(goals.userId, authenticatedUser.id)),
+          db.select().from(budgets).where(eq(budgets.userId, authenticatedUser.id)),
+          db.select().from(investments).where(eq(investments.userId, authenticatedUser.id)),
+          db.select().from(notifications).where(eq(notifications.userId, authenticatedUser.id)),
+          db.select().from(calendarEvents).where(eq(calendarEvents.userId, authenticatedUser.id)),
+          db.select().from(cards).where(eq(cards.userId, authenticatedUser.id)),
+          db.select().from(installments).where(eq(installments.userId, authenticatedUser.id)),
+          db.select().from(financialScores).where(eq(financialScores.userId, authenticatedUser.id)).limit(1),
+          db.select().from(aiHistoryItems).where(eq(aiHistoryItems.userId, authenticatedUser.id)),
+          db.select().from(financialReports).where(eq(financialReports.userId, authenticatedUser.id)),
+        ]);
 
-    if (existing.length === 0) {
-      // If default demo user, auto-seed in database!
-      if (cleanEmail === "edu.rocha785@gmail.com") {
-        try {
-          await db.insert(userProfiles).values({
-            id: "user-123",
-            name: "Eduardo Rocha",
-            email: "edu.rocha785@gmail.com",
-            cpf: "123.456.789-00",
-            avatar: "https://picsum.photos/seed/eduardo/150/150",
-            theme: "dark",
-            language: "pt",
-            notificationsEnabled: true,
-            aiGrounding: true,
-            realtimeSync: true,
-            password: password || "123456",
-          });
-          existing = [{
-            id: "user-123",
-            name: "Eduardo Rocha",
-            email: "edu.rocha785@gmail.com",
-            cpf: "123.456.789-00",
-            avatar: "https://picsum.photos/seed/eduardo/150/150",
-            theme: "dark",
-            language: "pt",
-            password: password || "123456",
-          }];
-        } catch (seedErr) {
-          console.error("Auto-seed error:", seedErr);
+        // If PostgreSQL has more recent items, merge them into userData
+        if (txList.length > 0 || goalList.length > 0 || budgetList.length > 0) {
+          userData = {
+            ...userData,
+            transactions: txList.length > 0 ? txList : userData?.transactions,
+            goals: goalList.length > 0 ? goalList : userData?.goals,
+            budgets: budgetList.length > 0 ? budgetList : userData?.budgets,
+            investments: investList.length > 0 ? investList : userData?.investments,
+            notifications: notifList.length > 0 ? notifList : userData?.notifications,
+            calendarEvents: eventList.length > 0 ? eventList : userData?.calendarEvents,
+            cards: cardList.length > 0 ? cardList : userData?.cards,
+            installments: instalList.length > 0 ? instalList : userData?.installments,
+            score: scoreList[0] || userData?.score,
+            aiHistory: aiHistList.length > 0 ? aiHistList : userData?.aiHistory,
+            financialReports: reportList.length > 0 ? reportList : userData?.financialReports,
+          };
+          ServerStore.saveUserData(authenticatedUser.id, userData as any);
         }
-      } else {
-        return NextResponse.json({ error: "Conta não encontrada com este e-mail. Crie sua conta na aba 'Criar Conta'." }, { status: 401 });
       }
+    } catch (pgErr) {
+      console.warn("[Login] PostgreSQL sync skipped (using server vault data):", (pgErr as any)?.message || pgErr);
+      markDbUnhealthy();
     }
-
-    const user = existing[0];
-    
-    // Check password or initialize if empty
-    if (!user.password) {
-      try {
-        await db.execute(sql`UPDATE user_profiles SET password = ${password} WHERE id = ${user.id};`);
-        user.password = password;
-      } catch (updErr) {
-        console.warn("Error updating empty password:", updErr);
-      }
-    } else if (user.password !== password) {
-      // If it's the demo account and using 123456 or previous password, permit and synchronize
-      if (cleanEmail === "edu.rocha785@gmail.com" && (password === "123456" || password.length >= 6)) {
-        try {
-          await db.execute(sql`UPDATE user_profiles SET password = ${password} WHERE id = ${user.id};`);
-          user.password = password;
-        } catch (e) {}
-      } else {
-        return NextResponse.json({ error: "Senha incorreta. Verifique sua senha ou clique em 'Esqueceu a senha?'." }, { status: 401 });
-      }
-    }
-
-    const userId = user.id;
-
-    // Pull ALL data for this user from database tables in parallel
-    const [
-      txList,
-      goalList,
-      budgetList,
-      investList,
-      notifList,
-      eventList,
-      cardList,
-      instalList,
-      scoreList,
-      aiHistList,
-      reportList
-    ] = await Promise.all([
-      db.select().from(transactions).where(eq(transactions.userId, userId)),
-      db.select().from(goals).where(eq(goals.userId, userId)),
-      db.select().from(budgets).where(eq(budgets.userId, userId)),
-      db.select().from(investments).where(eq(investments.userId, userId)),
-      db.select().from(notifications).where(eq(notifications.userId, userId)),
-      db.select().from(calendarEvents).where(eq(calendarEvents.userId, userId)),
-      db.select().from(cards).where(eq(cards.userId, userId)),
-      db.select().from(installments).where(eq(installments.userId, userId)),
-      db.select().from(financialScores).where(eq(financialScores.userId, userId)).limit(1),
-      db.select().from(aiHistoryItems).where(eq(aiHistoryItems.userId, userId)),
-      db.select().from(financialReports).where(eq(financialReports.userId, userId)),
-    ]);
 
     return NextResponse.json({
       success: true,
       message: "Acesso autorizado!",
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        cpf: user.cpf,
-        avatar: user.avatar,
-        theme: user.theme || "dark",
-        language: user.language || "pt",
-        preferences: {
-          notificationsEnabled: user.notificationsEnabled ?? true,
-          aiGrounding: user.aiGrounding ?? true,
-          realtimeSync: user.realtimeSync ?? true,
-        }
+        id: authenticatedUser.id,
+        name: authenticatedUser.name,
+        email: authenticatedUser.email,
+        cpf: authenticatedUser.cpf,
+        avatar: authenticatedUser.avatar,
+        theme: authenticatedUser.theme || "dark",
+        language: authenticatedUser.language || "pt",
+        preferences: authenticatedUser.preferences || {
+          notificationsEnabled: true,
+          aiGrounding: true,
+          realtimeSync: true,
+        },
       },
-      data: {
-        profile: user,
-        transactions: txList,
-        goals: goalList,
-        budgets: budgetList,
-        investments: investList,
-        notifications: notifList,
-        calendarEvents: eventList,
-        cards: cardList,
-        installments: instalList,
-        score: scoreList[0] || null,
-        aiHistory: aiHistList,
-        financialReports: reportList
-      }
+      data: userData,
     });
-
   } catch (error: any) {
     console.error("Error in POST /api/auth/login:", error);
-    return NextResponse.json({
-      success: true,
-      localOnly: true,
-      message: "Modo de contingência local ativado (banco temporariamente indisponível).",
-      details: error.message || String(error)
-    });
+    return NextResponse.json(
+      {
+        error: error.message || "Erro interno ao processar login.",
+      },
+      { status: 500 }
+    );
   }
 }
 export async function GET(req: NextRequest) {
