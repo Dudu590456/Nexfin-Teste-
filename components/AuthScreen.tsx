@@ -4,7 +4,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { 
   Mail, Lock, User, FileText, ArrowRight, AlertCircle, 
   CheckCircle2, RefreshCw, Eye, EyeOff, KeyRound, Clock, 
-  ChevronLeft, Copy, Check, Zap, CheckCircle, Sparkles
+  ChevronLeft, Copy, Check, Zap, CheckCircle, Sparkles,
+  Smartphone, Laptop, UserPlus, ExternalLink, HelpCircle
 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { NexFinDatabase } from "@/lib/database";
@@ -17,6 +18,8 @@ type AuthMode = "login" | "signup" | "forgot" | "reset";
 
 export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
   const [mode, setMode] = useState<AuthMode>("login");
+  const [showMobileGuide, setShowMobileGuide] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
   
   // Form fields
   const [email, setEmail] = useState(() => {
@@ -166,7 +169,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     setSuccess("");
 
     const cleanEmail = targetEmail.toLowerCase().trim();
-    if (!cleanEmail || !targetPass) {
+    const cleanPass = targetPass.trim();
+    if (!cleanEmail || !cleanPass) {
       setError("Preencha o e-mail e a senha.");
       return;
     }
@@ -187,7 +191,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         const response = await fetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email: cleanEmail, password: targetPass })
+          body: JSON.stringify({ email: cleanEmail, password: cleanPass })
         });
 
         const res = await response.json();
@@ -264,8 +268,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
           loginSuccessful = true;
           userData = found;
         } else if (found) {
-          const storedPass = localStorage.getItem(`nexfin_pass_${cleanEmail}`);
-          if (storedPass === targetPass || !storedPass) {
+          const storedPass = (localStorage.getItem(`nexfin_pass_${cleanEmail}`) || "").trim();
+          if (
+            !storedPass ||
+            storedPass === cleanPass ||
+            storedPass.toLowerCase() === cleanPass.toLowerCase()
+          ) {
             loginSuccessful = true;
             userData = found;
           }
@@ -281,8 +289,12 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               }
             } catch (e) {}
           }
-          const storedPass = localStorage.getItem(`nexfin_pass_${cleanEmail}`);
-          if (storedPass === targetPass || (!storedPass && targetPass.length >= 6)) {
+          const storedPass = (localStorage.getItem(`nexfin_pass_${cleanEmail}`) || "").trim();
+          if (
+            storedPass === cleanPass ||
+            storedPass.toLowerCase() === cleanPass.toLowerCase() ||
+            (!storedPass && cleanPass.length >= 6)
+          ) {
             userData = candidate || {
               id: "usr-" + Math.random().toString(36).substring(2, 9),
               name: cleanEmail.split("@")[0],
@@ -299,7 +311,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
       if (loginSuccessful && userData) {
         localStorage.setItem("nexfin_active_user", JSON.stringify(userData));
-        localStorage.setItem(`nexfin_pass_${cleanEmail}`, targetPass);
+        localStorage.setItem(`nexfin_pass_${cleanEmail}`, cleanPass);
         setSuccess("Acesso autorizado! Sincronizando cofre...");
         setTimeout(() => {
           onAuthSuccess(userData.id, userData.email, userData.name || "Usuário");
@@ -333,17 +345,20 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
     setSuccess("");
 
     const cleanEmail = email.toLowerCase().trim();
-    if (!name.trim() || !cleanEmail || !cpf || !password) {
+    const cleanPass = password.trim();
+    const cleanConfirm = confirmPassword.trim();
+
+    if (!name.trim() || !cleanEmail || !cpf.trim() || !cleanPass) {
       setError("Preencha todos os campos.");
       return;
     }
 
-    if (password.length < 6) {
+    if (cleanPass.length < 6) {
       setError("A senha deve conter no mínimo 6 caracteres.");
       return;
     }
 
-    if (password !== confirmPassword) {
+    if (cleanPass !== cleanConfirm) {
       setError("As senhas não conferem. Digite a mesma senha nos dois campos.");
       return;
     }
@@ -356,7 +371,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         id: userId,
         name: name.trim() || "Usuário",
         email: cleanEmail,
-        cpf,
+        cpf: cpf.trim(),
         avatar: `https://picsum.photos/seed/${name.split(" ")[0].toLowerCase()}/150/150`,
         theme: "dark" as const,
         language: "pt" as const,
@@ -376,8 +391,8 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
             id: userId,
             name: name.trim(),
             email: cleanEmail,
-            cpf,
-            password
+            cpf: cpf.trim(),
+            password: cleanPass
           })
         });
         const res = await response.json();
@@ -398,7 +413,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
       // 2. Store in local database & vault for immediate offline & cache usage
       NexFinDatabase.updateProfile(activeUser.id, activeUser);
       NexFinDatabase.ensureUserSeeded(activeUser.id);
-      localStorage.setItem(`nexfin_pass_${cleanEmail}`, password);
+      localStorage.setItem(`nexfin_pass_${cleanEmail}`, cleanPass);
       localStorage.setItem("nexfin_remembered_email", cleanEmail);
 
       const profiles = JSON.parse(localStorage.getItem("nexfin_profiles") || "[]");
@@ -412,7 +427,7 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
 
       if (autoLoginAfterSignup) {
         localStorage.setItem("nexfin_active_user", JSON.stringify(activeUser));
-        setSuccess("Conta criada com sucesso! Acesso liberado em qualquer aparelho.");
+        setSuccess("Conta criada com sucesso! Acesso liberado no celular e no notebook.");
         setTimeout(() => {
           onAuthSuccess(activeUser.id, activeUser.email, activeUser.name);
         }, 500);
@@ -420,11 +435,11 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
         setSuccess("Conta criada com sucesso! Acesse em qualquer celular ou computador.");
         setTimeout(() => {
           setMode("login");
-        }, 900);
+          setSuccess("");
+        }, 1200);
       }
-
     } catch (err: any) {
-      setError(err.message || "Erro ao efetuar cadastro.");
+      setError(err.message || "Erro ao criar conta.");
     } finally {
       setLoading(false);
     }
@@ -574,6 +589,77 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
               </div>
             </div>
 
+            {/* MOBILE / NOTEBOOK SYNC HELPER ACCORDION */}
+            {(mode === "login" || mode === "signup") && (
+              <div className="mb-4">
+                <button
+                  type="button"
+                  onClick={() => setShowMobileGuide(!showMobileGuide)}
+                  className="w-full py-2 px-3 rounded-xl bg-slate-900/80 hover:bg-slate-800/80 border border-cyan-500/30 text-cyan-300 text-xs font-semibold flex items-center justify-between transition cursor-pointer"
+                >
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Acessar no Celular & Notebook</span>
+                  </div>
+                  <span className="text-[10px] bg-cyan-500/20 px-2 py-0.5 rounded-full text-cyan-300 font-mono">
+                    {showMobileGuide ? "Ocultar" : "Como Acessar"}
+                  </span>
+                </button>
+
+                <AnimatePresence>
+                  {showMobileGuide && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-2 p-3.5 rounded-2xl bg-cyan-950/60 border border-cyan-400/40 text-xs space-y-2.5 shadow-lg">
+                        <div className="flex items-center gap-2 text-cyan-200 font-bold text-xs">
+                          <Laptop className="w-4 h-4 text-cyan-400" />
+                          <span>Mesmo Login no Celular e Notebook</span>
+                        </div>
+                        <p className="text-slate-300 text-[11px] leading-relaxed">
+                          Sua conta e cofre são sincronizados de forma unificada. Você pode criar a conta pelo notebook ou pelo celular e entrar em qualquer um dos dois com o mesmo e-mail e senha.
+                        </p>
+                        <div className="space-y-1.5 text-slate-300 text-[11px]">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-cyan-400 font-bold">1.</span>
+                            <span>Abra este endereço no navegador do celular (Chrome ou Safari).</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-cyan-400 font-bold">2.</span>
+                            <span>Insira o mesmo e-mail e senha que usou no notebook.</span>
+                          </div>
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-cyan-400 font-bold">3.</span>
+                            <span>Pronto! Todas as transações, contas e cartões aparecem nos dois aparelhos.</span>
+                          </div>
+                        </div>
+                        <div className="pt-1 flex items-center gap-2 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (typeof window !== "undefined") {
+                                navigator.clipboard.writeText(window.location.href);
+                                setCopiedLink(true);
+                                setTimeout(() => setCopiedLink(false), 2500);
+                              }
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold text-xs flex items-center gap-1.5 transition cursor-pointer shadow"
+                          >
+                            {copiedLink ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                            <span>{copiedLink ? "Link Copiado!" : "Copiar Link do App"}</span>
+                          </button>
+                          <span className="text-[10px] text-slate-400">Cole no WhatsApp ou envie ao celular</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
+
             {/* TAB SELECTOR (LOGIN / CRIAR CONTA) */}
             {(mode === "login" || mode === "signup") && (
               <div className="mb-6 p-1 bg-slate-900/90 rounded-2xl flex border border-slate-800 shadow-inner">
@@ -651,10 +737,32 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                   initial={{ opacity: 0, y: -6 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -6 }}
-                  className="mb-4 p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2.5 font-medium"
+                  className="mb-4 p-3.5 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs font-medium space-y-2"
                 >
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
-                  <span>{error}</span>
+                  <div className="flex items-center gap-2.5">
+                    <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>{error}</span>
+                  </div>
+
+                  {error.includes("Nenhuma conta cadastrada") && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setError("");
+                        setMode("signup");
+                      }}
+                      className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-emerald-500 to-cyan-500 hover:from-emerald-400 hover:to-cyan-400 text-slate-950 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow transition"
+                    >
+                      <UserPlus className="w-3.5 h-3.5" />
+                      <span>Cadastrar conta agora com este e-mail</span>
+                    </button>
+                  )}
+
+                  {error.includes("incorret") && (
+                    <div className="pt-2 border-t border-rose-500/30 text-[11px] text-rose-200/90 leading-tight">
+                      💡 <strong>Dica para Celular:</strong> Verifique se a primeira letra da sua senha não foi alterada para maiúscula pelo corretor do celular. Use o ícone do olho 👁️ para conferir.
+                    </div>
+                  )}
                 </motion.div>
               )}
 
@@ -743,6 +851,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                       type="email"
                       id="login-email-input"
                       required
+                      inputMode="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu.email@exemplo.com"
@@ -777,6 +889,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                       type={showPassword ? "text" : "password"}
                       id="login-password-input"
                       required
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="Digite sua senha"
@@ -901,6 +1016,10 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                     <input
                       type="email"
                       required
+                      inputMode="email"
+                      autoCapitalize="none"
+                      autoCorrect="off"
+                      spellCheck={false}
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="seu.email@exemplo.com"
@@ -919,6 +1038,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                       <input
                         type={showPassword ? "text" : "password"}
                         required
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="Mín. 6 dígitos"
@@ -943,6 +1065,9 @@ export default function AuthScreen({ onAuthSuccess }: AuthScreenProps) {
                       <input
                         type={showConfirmPassword ? "text" : "password"}
                         required
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="Repita a senha"

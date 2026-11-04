@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ServerStore } from "@/lib/serverStore";
-import { getDb, markDbUnhealthy } from "@/lib/db";
+import { getDb, markDbUnhealthy, markDbDisabled } from "@/lib/db";
 import { userProfiles } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -20,6 +20,7 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = (password || "").trim();
     const cleanName = (name || "").trim() || cleanEmail.split("@")[0] || "Usuário";
     const cleanCpf = (cpf || "").trim();
 
@@ -29,7 +30,7 @@ export async function POST(req: NextRequest) {
       name: cleanName,
       email: cleanEmail,
       cpf: cleanCpf,
-      password,
+      password: cleanPassword,
     });
 
     if (!storeResult.success || !storeResult.user) {
@@ -74,9 +75,21 @@ export async function POST(req: NextRequest) {
           });
         }
       }
-    } catch (pgErr) {
-      console.warn("[Register] PostgreSQL sync skipped (using server vault):", (pgErr as any)?.message || pgErr);
-      markDbUnhealthy();
+    } catch (pgErr: any) {
+      const msg = String(pgErr?.message || "");
+      const code = pgErr?.code;
+      if (
+        msg.includes("password authentication failed") ||
+        msg.includes("ECIRCUITBREAKER") ||
+        msg.includes("authentication failure") ||
+        msg.includes("too many authentication failures") ||
+        code === "28P01" ||
+        code === "XX000"
+      ) {
+        markDbDisabled(msg);
+      } else {
+        markDbUnhealthy();
+      }
     }
 
     return NextResponse.json({

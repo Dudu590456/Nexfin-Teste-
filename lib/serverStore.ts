@@ -202,6 +202,7 @@ export class ServerStore {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = (password || "").trim();
     const cleanName = (name || "").trim() || cleanEmail.split("@")[0] || "Usuário";
     const cleanCpf = (cpf || "").trim();
 
@@ -211,7 +212,7 @@ export class ServerStore {
     if (existingIndex !== -1) {
       const existing = vault.users[existingIndex];
       // Update password and profile details if provided
-      existing.password = password;
+      existing.password = cleanPassword;
       if (cleanName && cleanName !== "Usuário") existing.name = cleanName;
       if (cleanCpf) existing.cpf = cleanCpf;
       existing.updatedAt = new Date().toISOString();
@@ -231,7 +232,7 @@ export class ServerStore {
       email: cleanEmail,
       cpf: cleanCpf,
       avatar,
-      password,
+      password: cleanPassword,
       theme: "dark",
       language: "pt",
       preferences: {
@@ -309,6 +310,9 @@ export class ServerStore {
     }
 
     const cleanEmail = email.trim().toLowerCase();
+    const cleanPass = (password || "").trim();
+    const rawPass = password || "";
+
     const vault = this.loadVault();
     let user = vault.users.find((u) => u.email.toLowerCase() === cleanEmail);
 
@@ -319,7 +323,7 @@ export class ServerStore {
         name: "Eduardo Rocha",
         email: "edu.rocha785@gmail.com",
         cpf: "123.456.789-00",
-        password: password || "123456",
+        password: cleanPass || "123456",
       });
       user = vault.users.find((u) => u.email.toLowerCase() === cleanEmail);
     }
@@ -332,9 +336,18 @@ export class ServerStore {
       };
     }
 
-    // Verify password (or allow demo account flex)
-    const isDemoFlex = cleanEmail === "edu.rocha785@gmail.com" && (password === "123456" || password.length >= 6);
-    if (user.password !== password && !isDemoFlex) {
+    // Verify password with multi-device resilience (handles mobile auto-capitalization & trailing spaces)
+    const userPass = user.password || "";
+    const cleanUserPass = userPass.trim();
+
+    const isExactMatch = userPass === rawPass;
+    const isTrimmedMatch = cleanUserPass === cleanPass;
+    const isCaseInsensitiveMatch = cleanUserPass.toLowerCase() === cleanPass.toLowerCase();
+    const isDemoFlex = cleanEmail === "edu.rocha785@gmail.com" && (cleanPass === "123456" || cleanPass.length >= 6);
+
+    const isMatch = isExactMatch || isTrimmedMatch || isCaseInsensitiveMatch || isDemoFlex;
+
+    if (!isMatch) {
       return {
         success: false,
         status: 401,
@@ -342,9 +355,9 @@ export class ServerStore {
       };
     }
 
-    // If demo account entered new password, update it
-    if (isDemoFlex && user.password !== password) {
-      user.password = password;
+    // If matched via case-insensitivity or trim, harmonize to user's clean input to keep it synced
+    if ((isCaseInsensitiveMatch || isTrimmedMatch || isDemoFlex) && user.password !== cleanPass && cleanPass.length >= 4) {
+      user.password = cleanPass;
       user.updatedAt = new Date().toISOString();
       this.persistVault(vault);
     }

@@ -50,6 +50,40 @@
       },
       "createdAt": "2026-09-17T16:28:43.936Z",
       "updatedAt": "2026-09-17T16:28:50.783Z"
+    },
+    {
+      "id": "usr-yk9my2p",
+      "name": "Eduardo",
+      "email": "pagotrafrego617@gmail.com",
+      "cpf": "115.831.989-46",
+      "avatar": "https://picsum.photos/seed/eduardo/150/150",
+      "password": "Mimi2015",
+      "theme": "dark",
+      "language": "pt",
+      "preferences": {
+        "notificationsEnabled": true,
+        "aiGrounding": true,
+        "realtimeSync": true
+      },
+      "createdAt": "2026-09-17T16:31:45.879Z",
+      "updatedAt": "2026-09-18T14:31:12.953Z"
+    },
+    {
+      "id": "user-1789671206024-tn23a",
+      "name": "Teste Seguro",
+      "email": "teste.seguro@nexfin.app",
+      "cpf": "123.456.789-00",
+      "avatar": "https://picsum.photos/seed/teste/150/150",
+      "password": "senhaSegura123!",
+      "theme": "dark",
+      "language": "pt",
+      "preferences": {
+        "notificationsEnabled": true,
+        "aiGrounding": true,
+        "realtimeSync": true
+      },
+      "createdAt": "2026-09-17T18:53:26.024Z",
+      "updatedAt": "2026-09-17T18:53:30.178Z"
     }
   ],
   "userData": {
@@ -223,6 +257,127 @@
           "role": "model",
           "content": "Olá Maria Oliveira! Sua conta foi cadastrada com sucesso e está pronta para uso em qualquer aparelho (celular ou computador). Como posso te ajudar hoje?",
           "timestamp": "2026-09-17T16:28:43.936Z"
+        }
+      ],
+      "financialReports": [],
+      "notes": [],
+      "checklists": []
+    },
+    "usr-yk9my2p": {
+      "profile": {
+        "id": "usr-yk9my2p",
+        "name": "Eduardo",
+        "email": "pagotrafrego617@gmail.com",
+        "cpf": "115.831.989-46",
+        "avatar": "https://picsum.photos/seed/eduardo/150/150",
+        "password": "Mimi2015",
+        "theme": "dark",
+        "language": "pt",
+        "preferences": {
+          "notificationsEnabled": true,
+          "aiGrounding": true,
+          "realtimeSync": true
+        },
+        "createdAt": "2026-09-17T16:31:45.879Z",
+        "updatedAt": "2026-09-17T16:31:45.879Z"
+      },
+      "transactions": [],
+      "goals": [],
+      "budgets": [],
+      "investments": [],
+      "cards": [],
+      "installments": [],
+      "notifications": [],
+      "calendarEvents": [],
+      "score": {
+        "id": "s-usr-yk9my2p",
+        "userId": "usr-yk9my2p",
+        "score": 0,
+        "details": {
+          "organization": 0,
+          "control": 0,
+          "savings": 0,
+          "reserve": 0,
+          "goals": 0,
+          "punctuality": 0
+        },
+        "suggestions": [
+          "Bem-vindo ao NexFin! Cadastre suas primeiras receitas ou despesas para iniciar as análises."
+        ]
+      },
+      "aiHistory": [
+        {
+          "id": "ah-usr-yk9my2p",
+          "userId": "usr-yk9my2p",
+          "role": "model",
+          "content": "Olá Eduardo! Sua conta foi cadastrada com sucesso e está pronta para uso em qualquer aparelho (celular ou computador). Como posso te ajudar hoje?",
+          "timestamp": "2026-09-17T16:31:45.879Z"
+        }
+      ],
+      "financialReports": [],
+      "notes": [],
+      "checklists": []
+    },
+    "user-1789671206024-tn23a": {
+      "profile": {
+        "id": "user-1789671206024-tn23a",
+        "name": "Teste Seguro",
+        "email": "teste.seguro@nexfin.app",
+        "cpf": "123.456.789-00",
+        "avatar": "https://picsum.photos/seed/teste/150/150",
+        "password": "senhaSegura123!",
+        "theme": "dark",
+        "language": "pt",
+        "preferences": {
+          "notificationsEnabled": true,
+          "aiGrounding": true,
+          "realtimeSync": true
+        },
+        "createdAt": "2026-09-17T18:53:26.024Z",
+        "updatedAt": "2026-09-17T18:53:26.025Z"
+      },
+      "transactions": [
+        {
+          "id": "tx-test-99",
+          "userId": "user-1789671206024-tn23a",
+          "type": "expense",
+          "category": "Alimentação",
+          "amount": 75.5,
+          "description": "Supermercado",
+          "date": "2026-09-17",
+          "status": "paid"
+        }
+      ],
+      "goals": [],
+      "budgets": [],
+      "investments": [],
+      "cards": [],
+      "installments": [],
+      "notifications": [],
+      "calendarEvents": [],
+      "score": {
+        "id": "s-user-1789671206024-tn23a",
+        "userId": "user-1789671206024-tn23a",
+        "score": 0,
+        "details": {
+          "organization": 0,
+          "control": 0,
+          "savings": 0,
+          "reserve": 0,
+          "goals": 0,
+          "punctuality": 0
+        },
+        "suggestions": [
+          "Bem-vindo ao NexFin! Cadastre suas primeiras receitas ou despesas para iniciar as análises."
+        ]
+      },
+      "aiHistory": [
+        {
+          "id": "ah-user-1789671206024-tn23a",
+          "userId": "user-1789671206024-tn23a",
+          "role": "model",
+          "content": "Olá Teste Seguro! Sua conta foi cadastrada com sucesso e está pronta para uso em qualquer aparelho (celular ou computador). Como posso te ajudar hoje?",
+          "timestamp": "2026-09-17T18:53:26.025Z"
         }
       ],
       "financialReports": [],

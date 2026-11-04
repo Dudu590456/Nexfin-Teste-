@@ -7,24 +7,45 @@ let sqlClient: any = null;
 let tablesInitialized = false;
 
 let dbHealthy = true;
+let dbDisabled = false;
 let lastDbHealthCheck = 0;
+let probePromise: Promise<boolean> | null = null;
 
 export function isDbConfigured(): boolean {
+  if (dbDisabled) return false;
   const connStr = process.env.DATABASE_URL;
   if (!connStr) return false;
   if (
     connStr.includes("sua-senha") ||
     connStr.includes("[sua-senha]") ||
     connStr.includes("MY_DATABASE_URL") ||
-    connStr.includes("placeholder")
+    connStr.includes("placeholder") ||
+    connStr.includes("[YOUR-PASSWORD]") ||
+    connStr.includes("YOUR-PASSWORD") ||
+    connStr.includes("[YOUR_PASSWORD]") ||
+    connStr.includes("YOUR_PASSWORD") ||
+    connStr.includes("<password>") ||
+    connStr.includes("[password]")
   ) {
     return false;
   }
-  // If recently marked unhealthy due to fatal auth/network error, skip for 30 seconds to prevent blocking
-  if (!dbHealthy && Date.now() - lastDbHealthCheck < 30000) {
+  // If recently marked unhealthy due to fatal auth/network error, skip to prevent blocking
+  if (!dbHealthy && Date.now() - lastDbHealthCheck < 60000) {
     return false;
   }
   return true;
+}
+
+export function markDbDisabled(reason?: string) {
+  dbDisabled = true;
+  dbHealthy = false;
+  if (sqlClient) {
+    try {
+      sqlClient.end({ timeout: 1 }).catch(() => {});
+    } catch {}
+    sqlClient = null;
+  }
+  dbClient = null;
 }
 
 export function markDbUnhealthy() {
@@ -32,8 +53,42 @@ export function markDbUnhealthy() {
   lastDbHealthCheck = Date.now();
 }
 
+export async function checkDbConnection(): Promise<boolean> {
+  if (dbDisabled || !isDbConfigured()) return false;
+  if (probePromise) return probePromise;
+
+  probePromise = (async () => {
+    const client = getSqlClient();
+    if (!client) return false;
+    try {
+      await client`SELECT 1`;
+      dbHealthy = true;
+      return true;
+    } catch (err: any) {
+      const msg = String(err?.message || "");
+      const code = err?.code;
+      if (
+        msg.includes("password authentication failed") ||
+        msg.includes("ECIRCUITBREAKER") ||
+        msg.includes("authentication failure") ||
+        msg.includes("too many authentication failures") ||
+        msg.includes("Tenant or user not found") ||
+        code === "28P01" ||
+        code === "XX000"
+      ) {
+        markDbDisabled(msg);
+      } else {
+        markDbUnhealthy();
+      }
+      return false;
+    }
+  })();
+
+  return probePromise;
+}
+
 export function getSqlClient() {
-  if (!isDbConfigured()) return null;
+  if (dbDisabled || !isDbConfigured()) return null;
   const connStr = process.env.DATABASE_URL!;
   if (!sqlClient) {
     const isSupabase = connStr.includes("supabase.co") || connStr.includes("pooler.supabase.com") || connStr.includes("aws-");
@@ -49,13 +104,18 @@ export function getSqlClient() {
 }
 
 export function getDb() {
-  if (!isDbConfigured()) return null;
+  if (dbDisabled || !isDbConfigured()) return null;
   if (!dbClient) {
     const client = getSqlClient();
     if (!client) return null;
     dbClient = drizzle(client, { schema });
   }
   return dbClient;
+}
+
+// Automatically probe on startup if configured
+if (process.env.DATABASE_URL && isDbConfigured()) {
+  checkDbConnection().catch(() => {});
 }
 
 export async function ensureDatabaseSchema(): Promise<boolean> {
@@ -228,8 +288,21 @@ export async function ensureDatabaseSchema(): Promise<boolean> {
     `;
     tablesInitialized = true;
     return true;
-  } catch (err) {
-    console.error("Failed to auto-bootstrap schema:", err);
+  } catch (err: any) {
+    const msg = String(err?.message || "");
+    const code = err?.code;
+    if (
+      msg.includes("password authentication failed") ||
+      msg.includes("ECIRCUITBREAKER") ||
+      msg.includes("authentication failure") ||
+      msg.includes("too many authentication failures") ||
+      code === "28P01" ||
+      code === "XX000"
+    ) {
+      markDbDisabled(msg);
+    } else {
+      markDbUnhealthy();
+    }
     return false;
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { AuthTokenManager } from "@/lib/auth-tokens";
 import { ServerStore } from "@/lib/serverStore";
-import { getDb } from "@/lib/db";
+import { getDb, markDbDisabled } from "@/lib/db";
 import { userProfiles } from "@/lib/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
             .where(eq(userProfiles.email, cleanEmail));
         }
       } catch (dbError: any) {
-        console.error("Database update password error:", dbError);
+        markDbDisabled(dbError?.message);
       }
     }
 

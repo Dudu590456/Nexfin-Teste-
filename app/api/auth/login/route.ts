@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ServerStore } from "@/lib/serverStore";
-import { getDb, markDbUnhealthy } from "@/lib/db";
+import { getDb, markDbUnhealthy, markDbDisabled } from "@/lib/db";
 import { 
   userProfiles,
   transactions,
@@ -26,9 +26,10 @@ export async function POST(req: NextRequest) {
     }
 
     const cleanEmail = email.toLowerCase().trim();
+    const cleanPassword = (password || "").trim();
 
     // 1. Authenticate with ServerStore (central shared persistent authority)
-    const storeAuth = ServerStore.authenticateUser(cleanEmail, password);
+    const storeAuth = ServerStore.authenticateUser(cleanEmail, cleanPassword);
 
     if (!storeAuth.success || !storeAuth.user) {
       return NextResponse.json(
@@ -89,9 +90,21 @@ export async function POST(req: NextRequest) {
           ServerStore.saveUserData(authenticatedUser.id, userData as any);
         }
       }
-    } catch (pgErr) {
-      console.warn("[Login] PostgreSQL sync skipped (using server vault data):", (pgErr as any)?.message || pgErr);
-      markDbUnhealthy();
+    } catch (pgErr: any) {
+      const msg = String(pgErr?.message || "");
+      const code = pgErr?.code;
+      if (
+        msg.includes("password authentication failed") ||
+        msg.includes("ECIRCUITBREAKER") ||
+        msg.includes("authentication failure") ||
+        msg.includes("too many authentication failures") ||
+        code === "28P01" ||
+        code === "XX000"
+      ) {
+        markDbDisabled(msg);
+      } else {
+        markDbUnhealthy();
+      }
     }
 
     return NextResponse.json({
